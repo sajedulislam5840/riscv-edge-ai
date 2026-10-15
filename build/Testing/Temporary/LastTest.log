@@ -1,0 +1,20 @@
+Start testing: Oct 15 17:23 UTC
+----------------------------------------------------------
+1/1 Testing: CoreEngineTests
+1/1 Test: CoreEngineTests
+Command: "/content/riscv-edge-ai/build/tests/run_tests"
+Directory: /content/riscv-edge-ai/build/tests
+"CoreEngineTests" start time: Oct 15 17:23 UTC
+Output:
+----------------------------------------------------------
+[TEST SUITE] Running Day 1 Scaffolding Tests...
+[TEST SUITE] All initial tests passed successfully!
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"CoreEngineTests" end time: Oct 15 17:23 UTC
+"CoreEngineTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 15 17:23 UTC
