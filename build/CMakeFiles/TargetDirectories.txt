@@ -1,8 +1,0 @@
-/content/riscv-edge-ai/build/CMakeFiles/engine_runner.dir
-/content/riscv-edge-ai/build/CMakeFiles/test.dir
-/content/riscv-edge-ai/build/CMakeFiles/edit_cache.dir
-/content/riscv-edge-ai/build/CMakeFiles/rebuild_cache.dir
-/content/riscv-edge-ai/build/tests/CMakeFiles/run_tests.dir
-/content/riscv-edge-ai/build/tests/CMakeFiles/test.dir
-/content/riscv-edge-ai/build/tests/CMakeFiles/edit_cache.dir
-/content/riscv-edge-ai/build/tests/CMakeFiles/rebuild_cache.dir
