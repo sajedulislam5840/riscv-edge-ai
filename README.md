@@ -115,4 +115,6 @@ Executable paths depend on the CMake target configuration.
 - Compare software and hardware-style integer multiplication models.
 - Document reproducible experiments and limitations.
 
+## 📜 License
 
+Add a LICENSE file before distributing this project publicly.
