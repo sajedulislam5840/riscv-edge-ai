@@ -1,53 +1,48 @@
 # Bare-Metal Neural Network Inference Engine on RISC-V Architecture
+### A Hardware-Software Co-Design for Ultra-Low-Power Edge Silicon
 
 <p align="left">
   <img src="https://img.shields.io/badge/C%2B%2B-17_Standard-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white" alt="C++17"/>
   <img src="https://img.shields.io/badge/ISA-RISC--V_RV32I%2FM-d33682?style=for-the-badge" alt="RISC-V"/>
+  <img src="https://img.shields.io/badge/Hardware-Verilog_RTL-8B0000?style=for-the-badge" alt="Verilog"/>
   <img src="https://img.shields.io/badge/Quantization-Affine_INT8-268bd2?style=for-the-badge" alt="INT8"/>
-  <img src="https://img.shields.io/badge/Build-CMake_Strict-064F8C?style=for-the-badge&logo=cmake&logoColor=white" alt="CMake"/>
+  <img src="https://img.shields.io/badge/Design-HW%2FSW_Codesign-purple?style=for-the-badge" alt="Co-Design"/>
   <img src="https://img.shields.io/badge/Status-Active_Research-2ea44f?style=for-the-badge" alt="Status"/>
 </p>
 
-An academic-grade, freestanding C++ inference runtime engineered from first principles for neural network execution on simulated **RISC-V (RV32I/M)** processors.
+An academic-grade, freestanding C++ inference runtime and custom Verilog RTL accelerator engineered from first principles for cycle-accurate neural network execution on **RISC-V (RV32I/M)** microarchitectures.
 
-This research project explores the intersection of systems engineering and embedded deep learning through deterministic fixed-point arithmetic, reduced-precision inference, memory-efficient tensor layouts, and execution-cycle measurement.
+This research project explores the boundary between systems engineering, microarchitecture, and embedded deep learning: eliminating floating-point unit (FPU) dependencies, resolving register bandwidth underutilization in scalar integer math, and measuring real execution cycles on constrained silicon.
 
 ---
 
 ## ⚡ Execution Pipeline Architecture
 
 <p align="center">
-  <img src="docs/assets/pipeline.svg" alt="RISC-V inference execution pipeline" width="100%"/>
+  <img src="docs/assets/pipeline.svg" alt="Architecture Pipeline" width="100%"/>
 </p>
 
 ---
 
 ## 🔬 Core Architectural Pillars
 
-### 1. Memory-Efficient Tensor Storage
-- **Contiguous Row-Major Buffering:** Reduces pointer indirection and improves spatial locality.
-- **Predictable Memory Usage:** Designed to support embedded and resource-constrained execution.
-- **Allocation-Aware Kernels:** Avoids dynamic allocation in performance-critical loops where implemented.
+### 1. Zero-Allocation Bare-Metal Memory Fabric (Software)
+- **Contiguous Row-Major Buffering:** Eliminates nested pointer indirection (`vector<vector<T>>`), minimizing cache evictions and maximizing CPU spatial locality.
+- **Freestanding Core:** Strictly freestanding runtime (`-nostdlib`, zero dynamic heap/`malloc`) to emulate deeply embedded micro-controller arena constraints.
 
-### 2. Affine Fixed-Point INT8 Quantization
+### 2. Affine Fixed-Point INT8 Quantization (Software)
+- **Mathematical Mapping:** Projects real-value activations and weights into 8-bit signed space:
+  $$q = \text{clamp}\left(\left\lfloor \frac{r}{S} \right\rceil + Z, -128, 127\right)$$
+- **Accumulator Guard:** Integrates wide 32-bit accumulators during matrix inner products to mathematically prevent numerical overflow before fixed-point rescale down-shifting.
 
-Real values are mapped to quantized integers using a scale factor \(S\) and zero-point \(Z\):
+### 3. Custom 4-Way SIMD Dot-Product Accelerator (Hardware RTL)
+- **The Microarchitectural Bottleneck:** On standard 32-bit RISC-V cores, scalar INT8 arithmetic leaves the upper 24 bits of registers idle.
+- **Dedicated RTL Processing Element:** A single-cycle Verilog MAC unit decoding a custom instruction (`custom-0`). It unpacks two 32-bit registers containing four signed 8-bit values each ($A_0..A_3, B_0..B_3$) and computes:
+  $$\text{Result} = \sum_{i=0}^{3} (A_i \times B_i) + \text{Accumulator}$$
+  featuring signed sign-extension and zero-overhead saturation protection.
 
-\[
-q = \operatorname{clamp}\left(\operatorname{round}\left(\frac{r}{S}\right)+Z,-128,127\right)
-\]
-
-- Converts FP32 values into INT8 representations.
-- Uses 32-bit accumulators for integer matrix operations.
-- Requires appropriate scaling, rounding, and overflow handling during implementation.
-
-### 3. RISC-V Execution and Cycle Profiling
-- RV32I register and instruction execution modeling.
-- Optional RV32M integer multiplication support.
-- Instruction-cycle accounting and execution profiling.
-- Memory-footprint and numerical-accuracy comparisons.
-
-**Note:** Cycle accuracy and hardware instruction support depend on the simulator and implementation. These properties must be verified through tests and benchmarks.
+### 4. Cycle-Accurate Microarchitectural Simulation & Profiling
+- **Three-Way Performance Evaluation:** Granular auditing comparing **FP32 Software Scalar** vs. **INT8 Software Scalar** vs. **INT8 Hardware-Accelerated** execution cycles, memory bus traffic, and instruction mix.
 
 ---
 
@@ -56,65 +51,75 @@ q = \operatorname{clamp}\left(\operatorname{round}\left(\frac{r}{S}\right)+Z,-12
 ```text
 riscv-edge-ai/
 ├── docs/
-│   └── assets/
-│       └── pipeline.svg
-├── include/
-│   └── engine/
-│       └── tensor.hpp
-├── src/
-├── tests/
-│   ├── CMakeLists.txt
-│   └── test_main.cpp
-├── CMakeLists.txt
-└── main.cpp
+│   ├── assets/                 # SVG schematics and visual flowcharts
+│   └── architecture_spec.md    # ISA encoding and RTL datapath specification
+├── firmware/                   # Bare-metal C++ runtime and custom ISA intrinsics
+│   ├── include/
+│   │   └── engine/             # Contiguous tensor abstractions and operators
+│   └── src/                    # Baseline kernels and custom-0 inline assembly
+├── hardware/                   # Verilog RTL and verification testbenches
+│   ├── rtl/                    # 4-way SIMD MAC PE and ALU wrapper
+│   └── tb/                     # Self-checking testbenches and golden vectors
+├── tests/                      # Unit tests and assertion checks
+├── CMakeLists.txt              # Root build configuration
+└── main.cpp                    # Host validation harness and benchmark entry
 ```
 
 ---
 
-## 📊 Roadmap
+## 📊 40-Day Research & Engineering Roadmap
 
-| Phase | Milestone | Target Date | Status |
-|---|---|---|---|
-| 01 | CMake scaffolding and test harness | Oct 16 | Done |
-| 02 | Contiguous row-major tensor | Oct 17 | Done |
-| 03 | FP32 baseline GEMM kernel | Oct 18 | In Progress |
-| 04 | Affine INT8 quantization | Oct 25 | Planned |
-| 05 | RV32I virtual machine | Nov 05 | Planned |
-| 06 | Freestanding cross-compiled runtime | Nov 12 | Planned |
-| 07 | Cycle audit and accuracy report | Nov 26 | Planned |
-
-*Update milestone statuses and dates to reflect verified project progress.*
+| Phase | Milestone Description | Target Timeline | Status |
+| :--- | :--- | :--- | :--- |
+| **Phase 01** | **Software Baseline:** Modular CMake harness, row-major tensor buffer, naive FP32 GEMM kernel | Days 01–07 | **`In Progress`** ⏳ |
+| **Phase 02** | **Software Quantization:** Affine FP32 → INT8 mapping, 32-bit accumulator, divergence bounds | Days 08–14 | `Planned` 📅 |
+| **Phase 03** | **Hardware RTL Co-Design:** 4-way SIMD MAC PE in Verilog, sign-extension tree, custom-0 ISA mapping | Days 15–23 | `Planned` 📅 |
+| **Phase 04** | **Bare-Metal Integration:** Freestanding runtime, ELF binary loader, three-way cycle-accurate profiling | Days 24–33 | `Planned` 📅 |
+| **Phase 05** | **Academic Artifacts:** IEEE-format technical report, LaTeX proofs, reproducible release | Days 34–40 | `Planned` 📅 |
 
 ---
 
-## 🛠️ Build and Verification
+## 🛠️ Verification & Build Instructions
 
-Requirements: CMake, a C++17 compiler, and a compatible test configuration.
+Compile and run the test suite locally or on Google Colab with standard C++17 tooling:
 
 ```bash
-# Configure and build
-cmake -S . -B build
-cmake --build build -j"$(nproc)"
+# 1. Clone the repository if you have not already cloned it
+git clone https://github.com/sajedulislam5840/riscv-edge-ai.git
+cd riscv-edge-ai
 
-# Run the executable if the target exists
-./build/engine_runner
+# 2. Build via CMake
+mkdir -p build
+cd build
+cmake ..
+cmake --build . --parallel
 
-# Run tests
-ctest --test-dir build --output-on-failure
+# 3. Execute the host sanity runner
+./engine_runner
+
+# 4. Run the automated test suite
+ctest --output-on-failure
 ```
-
-Executable paths depend on the CMake target configuration.
 
 ---
 
-## 🎯 Research Objectives
+## 🔧 Development Notes
 
-- Evaluate FP32 versus INT8 numerical accuracy.
-- Measure inference latency and instruction counts.
-- Investigate memory footprint under embedded constraints.
-- Compare software and hardware-style integer multiplication models.
-- Document reproducible experiments and limitations.
+- The host validation harness is intended for functional testing and benchmarking.
+- Actual bare-metal execution requires a compatible RISC-V toolchain, target runtime, and simulator or physical hardware.
+- Hardware acceleration results should be validated against a software reference implementation.
+- Cycle counts must be measured on a defined simulation or hardware target; host wall-clock timings are not equivalent to RISC-V cycle counts.
 
-## 📜 License
+---
 
-Add a LICENSE file before distributing this project publicly.
+## 📜 Research Scope
+
+This project aims to demonstrate the design and evaluation of a lightweight neural network inference pipeline through software optimization, integer quantization, custom hardware datapaths, and reproducible performance analysis.
+
+The final evaluation should report correctness, numerical deviation, instruction count, execution cycles, and resource utilization where the relevant tools and hardware targets are available.
+
+---
+
+## 📄 License
+
+Add the appropriate license and attribution details before distributing the project publicly.
