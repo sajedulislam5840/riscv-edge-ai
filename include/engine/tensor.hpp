@@ -11,11 +11,11 @@ namespace engine {
 template <typename T>
 class Tensor {
 public:
-    
+
     Tensor(size_t rows, size_t cols, T initial_val = T())
         : rows_(rows), cols_(cols), data_(rows * cols, initial_val) {}
 
- 
+
     size_t rows() const { return rows_; }
     size_t cols() const { return cols_; }
     size_t size() const { return data_.size(); }
@@ -24,7 +24,7 @@ public:
     T* data() { return data_.data(); }
     const T* data() const { return data_.data(); }
 
- 
+
     T& operator()(size_t r, size_t c) {
         return data_[r * cols_ + c];
     }
