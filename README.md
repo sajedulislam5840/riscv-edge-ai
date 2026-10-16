@@ -122,4 +122,4 @@ The final evaluation should report correctness, numerical deviation, instruction
 
 ## 📄 License
 
-Add the appropriate license and attribution details before distributing the project publicly.
+This project is licensed under the [MIT License](LICENSE).
