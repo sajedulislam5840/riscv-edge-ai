@@ -1,4 +1,5 @@
 #include "engine/ops.hpp"
+#include <algorithm>
 
 namespace engine {
 
@@ -12,7 +13,7 @@ void matmul_fp32(const Tensor<float>& A, const Tensor<float>& B, Tensor<float>& 
     size_t N = B.cols();
 
     if (C.rows() != M || C.cols() != N) {
-        throw std::invalid_argument("Output matrix C has incorrect dimensions.");
+        throw std::invalid_argument("Output matrix C dimensions mismatch.");
     }
 
     const float* a_data = A.data();
@@ -27,6 +28,29 @@ void matmul_fp32(const Tensor<float>& A, const Tensor<float>& B, Tensor<float>& 
             }
             c_data[i * N + j] = sum;
         }
+    }
+}
+
+void relu(const Tensor<float>& X, Tensor<float>& Y) {
+    if (X.rows() != Y.rows() || X.cols() != Y.cols()) {
+        throw std::invalid_argument("Dimension mismatch between input X and output Y for ReLU.");
+    }
+
+    const float* in = X.data();
+    float* out = Y.data();
+    size_t total = X.size();
+
+    for (size_t i = 0; i < total; ++i) {
+        out[i] = std::max(0.0f, in[i]);
+    }
+}
+
+void relu_inplace(Tensor<float>& X) {
+    float* data = X.data();
+    size_t total = X.size();
+
+    for (size_t i = 0; i < total; ++i) {
+        data[i] = std::max(0.0f, data[i]);
     }
 }
 
