@@ -1,4 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="100%" height="240">
+%cd /content/riscv-edge-ai
+
+import os
+
+os.makedirs("docs/assets", exist_ok=True)
+
+svg_clean = """<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="900" height="240">
   <defs>
     <style>
       .bg { fill: #0d1117; }
@@ -13,7 +20,7 @@
     </marker>
   </defs>
 
-  <rect width="100%" height="100%" class="bg" />
+  <rect width="900" height="240" class="bg" />
 
   <!-- Stage 1 -->
   <g transform="translate(30, 40)">
@@ -60,7 +67,16 @@
     <text x="20" y="26" class="title-text">Stage 4: Cycle Audit</text>
     <text x="20" y="55" class="body-text">• Bare-Metal Execution</text>
     <text x="20" y="75" class="body-text">• 3-Way Cycle Comparison</text>
-    <text x="20" y="95" class="body-text">• Latency & IPC Metrics</text>
+    <text x="20" y="95" class="body-text">• Latency &amp; IPC Metrics</text>
     <text x="20" y="125" class="body-text" fill="#d29922">[Verified Speedup]</text>
   </g>
 </svg>
+"""
+
+with open("docs/assets/pipeline.svg", "w", encoding="utf-8") as f:
+    f.write(svg_clean)
+
+!git add docs/assets/pipeline.svg
+!git commit -m "fix(docs): format svg with standard xml header and valid entity encoding" || true
+!git push origin main
+print("[SUCCESS] docs/assets/pipeline.svg updated and pushed.")
