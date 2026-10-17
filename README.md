@@ -18,37 +18,9 @@ This research project explores the boundary between systems engineering, microar
 
 ## ⚡ Execution Pipeline Architecture
 
-```mermaid
-flowchart LR
-    classDef stageBox fill:#161b22,stroke:#30363d,stroke-width:2px,color:#c9d1d9
-    classDef activeBox fill:#161b22,stroke:#58a6ff,stroke-width:2px,color:#c9d1d9
-
-    subgraph S1["<b>Stage 1: FP32 Baseline</b>"]
-        direction TB
-        A1["• Continuous 1D Buffer<br/>• Naive GEMM Kernel<br/>• Emulated FPU Baseline<br/><span style='color:#f85149'>[High Cycle Overhead]</span>"]
-    end
-    class S1 stageBox
-
-    subgraph S2["<b>Stage 2: Quantize</b>"]
-        direction TB
-        A2["• Affine FP32 → INT8<br/>• 75% Footprint Reduction<br/>• 32-bit Accumulator<br/><span style='color:#3fb950'>[Memory Compressed]</span>"]
-    end
-    class S2 activeBox
-
-    subgraph S3["<b>Stage 3: 4-Way SIMD RTL</b>"]
-        direction TB
-        A3["• Register Packing (32b)<br/>• Custom-0 ISA Instruction<br/>• 1-Cycle Parallel MAC<br/><span style='color:#58a6ff'>[4x Compute Density]</span>"]
-    end
-    class S3 stageBox
-
-    subgraph S4["<b>Stage 4: Cycle Audit</b>"]
-        direction TB
-        A4["• Bare-Metal Execution<br/>• 3-Way Cycle Comparison<br/>• Latency & IPC Metrics<br/><span style='color:#d29922'>[Verified Speedup]</span>"]
-    end
-    class S4 stageBox
-
-    S1 --> S2 --> S3 --> S4
-```
+<p align="center">
+  <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5MDAgMjQwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIyNDAiPgogIDxkZWZzPgogICAgPHN0eWxlPgogICAgICAuYmcgeyBmaWxsOiAjMGQxMTE3OyB9CiAgICAgIC5ib3ggeyBmaWxsOiAjMTYxYjIyOyBzdHJva2U6ICMzMDM2M2Q7IHN0cm9rZS13aWR0aDogMjsgcng6IDg7IH0KICAgICAgLmJveC1hY3RpdmUgeyBmaWxsOiAjMTYxYjIyOyBzdHJva2U6ICM1OGE2ZmY7IHN0cm9rZS13aWR0aDogMjsgcng6IDg7IH0KICAgICAgLnRpdGxlLXRleHQgeyBmb250LWZhbWlseTogLWFwcGxlLXN5c3RlbSwgQmxpbmtNYWNTeXN0ZW1Gb250LCAiU2Vnb2UgVUkiLCBIZWx2ZXRpY2EsIEFyaWFsLCBzYW5zLXNlcmlmOyBmb250LXNpemU6IDEzcHg7IGZvbnQtd2VpZ2h0OiA2MDA7IGZpbGw6ICM1OGE2ZmY7IH0KICAgICAgLmJvZHktdGV4dCB7IGZvbnQtZmFtaWx5OiAtYXBwbGUtc3lzdGVtLCBCbGlua01hY1N5c3RlbUZvbnQsICJTZWdvZSBVSSIsIEhlbHZldGljYSwgQXJpYWwsIHNhbnMtc2VyaWY7IGZvbnQtc2l6ZTogMTFweDsgZmlsbDogIzhiOTQ5ZTsgfQogICAgICAuYXJyb3cgeyBzdHJva2U6ICM4Yjk0OWU7IHN0cm9rZS13aWR0aDogMjsgbWFya2VyLWVuZDogdXJsKCNhcnJvd2hlYWQpOyB9CiAgICA8L3N0eWxlPgogICAgPG1hcmtlciBpZD0iYXJyb3doZWFkIiBtYXJrZXJXaWR0aD0iOCIgbWFya2VySGVpZ2h0PSI2IiByZWZYPSI3IiByZWZZPSIzIiBvcmllbnQ9ImF1dG8iPgogICAgICA8cG9seWdvbiBwb2ludHM9IjAgMCwgOCAzLCAwIDYiIGZpbGw9IiM4Yjk0OWUiIC8+CiAgICA8L21hcmtlcj4KICA8L2RlZnM+CgogIDxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGNsYXNzPSJiZyIgLz4KCiAgPCEtLSBTdGFnZSAxIC0tPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDMwLCA0MCkiPgogICAgPHJlY3Qgd2lkdGg9IjE4MCIgaGVpZ2h0PSIxNTAiIGNsYXNzPSJib3giIC8+CiAgICA8dGV4dCB4PSIyMCIgeT0iMjYiIGNsYXNzPSJ0aXRsZS10ZXh0Ij5TdGFnZSAxOiBGUDMyIEJhc2VsaW5lPC90ZXh0PgogICAgPHRleHQgeD0iMjAiIHk9IjU1IiBjbGFzcz0iYm9keS10ZXh0Ij7igKIgQ29udGludW91cyAxRCBCdWZmZXI8L3RleHQ+CiAgICA8dGV4dCB4PSIyMCIgeT0iNzUiIGNsYXNzPSJib2R5LXRleHQiPuKAoiBOYWl2ZSBHRU1NIEtlcm5lbDwvdGV4dD4KICAgIDx0ZXh0IHg9IjIwIiB5PSI5NSIgY2xhc3M9ImJvZHktdGV4dCI+4oCiIEVtdWxhdGVkIEZQVSBCYXNlbGluZTwvdGV4dD4KICAgIDx0ZXh0IHg9IjIwIiB5PSIxMjUiIGNsYXNzPSJib2R5LXRleHQiIGZpbGw9IiNmODUxNDkiPltIaWdoIEN5Y2xlIE92ZXJoZWFkXTwvdGV4dD4KICA8L2c+CgogIDwhLS0gQXJyb3cgMSAtPiAyIC0tPgogIDxsaW5lIHgxPSIyMTAiIHkxPSIxMTUiIHgyPSIyNTAiIHkyPSIxMTUiIGNsYXNzPSJhcnJvdyIgLz4KCiAgPCEtLSBTdGFnZSAyIC0tPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDI1MCwgNDApIj4KICAgIDxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTUwIiBjbGFzcz0iYm94LWFjdGl2ZSIgLz4KICAgIDx0ZXh0IHg9IjI0IiB5PSIyNiIgY2xhc3M9InRpdGxlLXRleHQiPlN0YWdlIDI6IFF1YW50aXplPC90ZXh0PgogICAgPHRleHQgeD0iMjAiIHk9IjU1IiBjbGFzcz0iYm9keS10ZXh0Ij7igKIgQWZmaW5lIEZQMzIg4oaSIElOVDg8L3RleHQ+CiAgICA8dGV4dCB4PSIyMCIgeT0iNzUiIGNsYXNzPSJib2R5LXRleHQiPuKAoiA3NSUgRm9vdHByaW50IFJlZHVjdGlvbjwvdGV4dD4KICAgIDx0ZXh0IHg9IjIwIiB5PSI5NSIgY2xhc3M9ImJvZHktdGV4dCI+4oCiIDMyLWJpdCBBY2N1bXVsYXRvcjwvdGV4dD4KICAgIDx0ZXh0IHg9IjIwIiB5PSIxMjUiIGNsYXNzPSJib2R5LXRleHQiIGZpbGw9IiMzZmI5NTAiPltNZW1vcnkgQ29tcHJlc3NlZF08L3RleHQ+CiAgPC9nPgoKICA8IS0tIEFycm93IDIgLT4gMyAtLT4KICA8bGluZSB4MT0iNDMwIiB5MT0iMTE1IiB4Mj0iNDcwIiB5Mj0iMTE1IiBjbGFzcz0iYXJyb3ciIC8+CgogIDwhLS0gU3RhZ2UgMyAtLT4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg0NzAsIDQwKSI+CiAgICA8cmVjdCB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1MCIgY2xhc3M9ImJveCIgLz4KICAgIDx0ZXh0IHg9IjE4IiB5PSIyNiIgY2xhc3M9InRpdGxlLXRleHQiPlN0YWdlIDM6IDQtV2F5IFNJTUQgUlRMPC90ZXh0PgogICAgPHRleHQgeD0iMjAiIHk9IjU1IiBjbGFzcz0iYm9keS10ZXh0Ij7igKIgUmVnaXN0ZXIgUGFja2luZyAoMzJiKTwvdGV4dD4KICAgIDx0ZXh0IHg9IjIwIiB5PSI3NSIgY2xhc3M9ImJvZHktdGV4dCI+4oCiIEN1c3RvbS0wIElTQSBJbnN0cnVjdGlvbjwvdGV4dD4KICAgIDx0ZXh0IHg9IjIwIiB5PSI5NSIgY2xhc3M9ImJvZHktdGV4dCI+4oCiIDEtQ3ljbGUgUGFyYWxsZWwgTUFDPC90ZXh0PgogICAgPHRleHQgeD0iMjAiIHk9IjEyNSIgY2xhc3M9ImJvZHktdGV4dCIgZmlsbD0iIzU4YTZmZiI+WzR4IENvbXB1dGUgRGVuc2l0eV08L3RleHQ+CiAgPC9nPgoKICA8IS0tIEFycm93IDMgLT4gNCAtLT4KICA8bGluZSB4MT0iNjUwIiB5MT0iMTE1IiB4Mj0iNjkwIiB5Mj0iMTE1IiBjbGFzcz0iYXJyb3ciIC8+CgogIDwhLS0gU3RhZ2UgNCAtLT4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg2OTAsIDQwKSI+CiAgICA8cmVjdCB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE1MCIgY2xhc3M9ImJveCIgLz4KICAgIDx0ZXh0IHg9IjIwIiB5PSIyNiIgY2xhc3M9InRpdGxlLXRleHQiPlN0YWdlIDQ6IEN5Y2xlIEF1ZGl0PC90ZXh0PgogICAgPHRleHQgeD0iMjAiIHk9IjU1IiBjbGFzcz0iYm9keS10ZXh0Ij7igKIgQmFyZS1NZXRhbCBFeGVjdXRpb248L3RleHQ+CiAgICA8dGV4dCB4PSIyMCIgeT0iNzUiIGNsYXNzPSJib2R5LXRleHQiPuKAoiAzLVdheSBDeWNsZSBDb21wYXJpc29uPC90ZXh0PgogICAgPHRleHQgeD0iMjAiIHk9Ijk1IiBjbGFzcz0iYm9keS10ZXh0Ij7igKIgTGF0ZW5jeSAmYW1wOyBJUEMgTWV0cmljczwvdGV4dD4KICAgIDx0ZXh0IHg9IjIwIiB5PSIxMjUiIGNsYXNzPSJib2R5LXRleHQiIGZpbGw9IiNkMjk5MjIiPltWZXJpZmllZCBTcGVlZHVwXTwvdGV4dD4KICA8L2c+Cjwvc3ZnPg==" alt="Architecture Pipeline" width="100%"/>
+</p>
 ---
 
 ## 🔬 Core Architectural Pillars
