@@ -1,61 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 260" width="100%" height="260" style="background:#0d1117;border-radius:8px;font-family:Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="100%" height="100%">
   <defs>
     <style>
-      .box{rx:6;stroke-width:1.5;fill:#161b22}
-      .title-text{fill:#f0f6fc;font-weight:600;font-size:13px}
-      .sub-text{fill:#8b949e;font-size:11px}
-      .pulse-dot{animation:pulse 3s infinite ease-in-out}
-      @keyframes pulse{0%{r:4;opacity:.3}50%{r:6.5;opacity:1}100%{r:4;opacity:.3}}
-      .flow-pulse{stroke-dasharray:8 8;animation:dash 1.5s linear infinite}
-      @keyframes dash{to{stroke-dashoffset:-16}}
+      .bg { fill: #0d1117; }
+      .box { fill: #161b22; stroke: #30363d; stroke-width: 2; rx: 8; }
+      .box-active { fill: #161b22; stroke: #58a6ff; stroke-width: 2; rx: 8; }
+      .title-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #58a6ff; }
+      .body-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; fill: #8b949e; }
+      .arrow { stroke: #8b949e; stroke-width: 2; marker-end: url(#arrowhead); }
     </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#8b949e" />
+    </marker>
   </defs>
 
-  <g stroke-width="2" fill="none">
-    <path d="M160 130H240" stroke="#30363d"/>
-    <path d="M160 130H240" stroke="#58a6ff" class="flow-pulse"/>
-    <path d="M380 130H460" stroke="#30363d"/>
-    <path d="M380 130H460" stroke="#bc8cff" class="flow-pulse"/>
-    <path d="M600 130H680" stroke="#30363d"/>
-    <path d="M600 130H680" stroke="#3fb950" class="flow-pulse"/>
+  <rect width="100%" height="100%" class="bg" />
+
+  <!-- Stage 1 -->
+  <g transform="translate(30, 40)">
+    <rect width="180" height="150" class="box" />
+    <text x="20" y="26" class="title-text">Stage 1: FP32 Baseline</text>
+    <text x="20" y="55" class="body-text">• Continuous 1D Buffer</text>
+    <text x="20" y="75" class="body-text">• Naive GEMM Kernel</text>
+    <text x="20" y="95" class="body-text">• Emulated FPU Baseline</text>
+    <text x="20" y="125" class="body-text" fill="#f85149">[High Cycle Overhead]</text>
   </g>
 
-  <g transform="translate(20 80)">
-    <rect class="box" width="140" height="100" stroke="#58a6ff"/>
-    <circle class="pulse-dot" cx="20" cy="22" r="5" fill="#58a6ff"/>
-    <text x="35" y="26" class="title-text">Stage 1: FP32</text>
-    <text x="15" y="55" class="sub-text">Continuous Tensor</text>
-    <text x="15" y="73" class="sub-text">Row-Major Buffer</text>
-    <text x="15" y="90" class="sub-text">Naive GEMM Ops</text>
-  </g>
+  <!-- Arrow 1 -> 2 -->
+  <line x1="210" y1="115" x2="250" y2="115" class="arrow" />
 
-  <g transform="translate(240 80)">
-    <rect class="box" width="140" height="100" stroke="#bc8cff"/>
-    <circle class="pulse-dot" cx="20" cy="22" r="5" fill="#bc8cff"/>
+  <!-- Stage 2 -->
+  <g transform="translate(250, 40)">
+    <rect width="180" height="150" class="box-active" />
     <text x="24" y="26" class="title-text">Stage 2: Quantize</text>
-    <text x="15" y="55" class="sub-text">Affine Mapping (S, Z)</text>
-    <text x="15" y="73" class="sub-text">FP32 to INT8 Math</text>
-    <text x="15" y="90" class="sub-text">32-bit Accumulator</text>
+    <text x="20" y="55" class="body-text">• Affine FP32 → INT8</text>
+    <text x="20" y="75" class="body-text">• 75% Footprint Reduction</text>
+    <text x="20" y="95" class="body-text">• 32-bit Accumulator</text>
+    <text x="20" y="125" class="body-text" fill="#3fb950">[Memory Compressed]</text>
   </g>
 
-  <g transform="translate(460 80)">
-    <rect class="box" width="140" height="100" stroke="#3fb950"/>
-    <circle class="pulse-dot" cx="20" cy="22" r="5" fill="#3fb950"/>
-    <text x="35" y="26" class="title-text">Stage 3: RV32I</text>
-    <text x="15" y="55" class="sub-text">Cycle Emulator</text>
-    <text x="15" y="73" class="sub-text">Freestanding Binary</text>
-    <text x="15" y="90" class="sub-text">RV32M Integer MUL</text>
+  <!-- Arrow 2 -> 3 -->
+  <line x1="430" y1="115" x2="470" y2="115" class="arrow" />
+
+  <!-- Stage 3 -->
+  <g transform="translate(470, 40)">
+    <rect width="180" height="150" class="box" />
+    <text x="18" y="26" class="title-text">Stage 3: 4-Way SIMD RTL</text>
+    <text x="20" y="55" class="body-text">• Register Packing (32b)</text>
+    <text x="20" y="75" class="body-text">• Custom-0 ISA Instruction</text>
+    <text x="20" y="95" class="body-text">• 1-Cycle Parallel MAC</text>
+    <text x="20" y="125" class="body-text" fill="#58a6ff">[4x Compute Density]</text>
   </g>
 
-  <g transform="translate(680 80)">
-    <rect class="box" width="145" height="100" stroke="#d29922"/>
-    <circle class="pulse-dot" cx="20" cy="22" r="5" fill="#d29922"/>
-    <text x="35" y="26" class="title-text">Stage 4: Profile</text>
-    <text x="15" y="55" class="sub-text">Cycle Count Audit</text>
-    <text x="15" y="73" class="sub-text">Memory Footprint</text>
-    <text x="15" y="90" class="sub-text">Accuracy Divergence</text>
-  </g>
+  <!-- Arrow 3 -> 4 -->
+  <line x1="650" y1="115" x2="690" y2="115" class="arrow" />
 
-  <text x="25" y="38" fill="#58a6ff" font-size="14" font-weight="700" letter-spacing="1.5">END-TO-END INFERENCE EXECUTION PIPELINE</text>
-  <text x="25" y="54" fill="#8b949e" font-size="11">Deterministic Execution on Custom RISC-V Architecture</text>
+  <!-- Stage 4 -->
+  <g transform="translate(690, 40)">
+    <rect width="180" height="150" class="box" />
+    <text x="20" y="26" class="title-text">Stage 4: Cycle Audit</text>
+    <text x="20" y="55" class="body-text">• Bare-Metal Execution</text>
+    <text x="20" y="75" class="body-text">• 3-Way Cycle Comparison</text>
+    <text x="20" y="95" class="body-text">• Latency & IPC Metrics</text>
+    <text x="20" y="125" class="body-text" fill="#d29922">[Verified Speedup]</text>
+  </g>
 </svg>
