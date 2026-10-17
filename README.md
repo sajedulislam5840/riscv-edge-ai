@@ -18,7 +18,7 @@ This research project explores the boundary between systems engineering, microar
 
 ## ⚡ Execution Pipeline Architecture
 
-![Architecture Pipeline](./docs/assets/pipeline.svg)
+![Architecture Pipeline](docs/assets/pipeline.svg?raw=true)
 
 ---
 
