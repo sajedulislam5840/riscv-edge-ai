@@ -18,8 +18,37 @@ This research project explores the boundary between systems engineering, microar
 
 ## ⚡ Execution Pipeline Architecture
 
-![Architecture Pipeline](docs/assets/pipeline.svg?raw=true)
+```mermaid
+flowchart LR
+    classDef stageBox fill:#161b22,stroke:#30363d,stroke-width:2px,color:#c9d1d9
+    classDef activeBox fill:#161b22,stroke:#58a6ff,stroke-width:2px,color:#c9d1d9
 
+    subgraph S1["<b>Stage 1: FP32 Baseline</b>"]
+        direction TB
+        A1["• Continuous 1D Buffer<br/>• Naive GEMM Kernel<br/>• Emulated FPU Baseline<br/><span style='color:#f85149'>[High Cycle Overhead]</span>"]
+    end
+    class S1 stageBox
+
+    subgraph S2["<b>Stage 2: Quantize</b>"]
+        direction TB
+        A2["• Affine FP32 → INT8<br/>• 75% Footprint Reduction<br/>• 32-bit Accumulator<br/><span style='color:#3fb950'>[Memory Compressed]</span>"]
+    end
+    class S2 activeBox
+
+    subgraph S3["<b>Stage 3: 4-Way SIMD RTL</b>"]
+        direction TB
+        A3["• Register Packing (32b)<br/>• Custom-0 ISA Instruction<br/>• 1-Cycle Parallel MAC<br/><span style='color:#58a6ff'>[4x Compute Density]</span>"]
+    end
+    class S3 stageBox
+
+    subgraph S4["<b>Stage 4: Cycle Audit</b>"]
+        direction TB
+        A4["• Bare-Metal Execution<br/>• 3-Way Cycle Comparison<br/>• Latency & IPC Metrics<br/><span style='color:#d29922'>[Verified Speedup]</span>"]
+    end
+    class S4 stageBox
+
+    S1 --> S2 --> S3 --> S4
+```
 ---
 
 ## 🔬 Core Architectural Pillars
