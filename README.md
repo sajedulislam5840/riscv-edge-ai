@@ -53,7 +53,6 @@ riscv-edge-ai/
 ├── docs/
 │   ├── assets/                 # SVG schematics and visual flowcharts
 │   └── architecture_spec.md    # ISA encoding and RTL datapath specification
-├── firmware/                   # Bare-metal C++ runtime and custom ISA intrinsics
 │   ├── include/
 │   │   └── engine/             # Contiguous tensor abstractions and operators
 │   └── src/                    # Baseline kernels and custom-0 inline assembly
