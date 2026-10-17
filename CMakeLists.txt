@@ -10,9 +10,8 @@ add_compile_options(-Wall -Wextra -Wpedantic -O2)
 
 include_directories(include)
 
-# Core engine library
+# Core engine library (ops.cpp implementation; Tensor is template header)
 add_library(engine_core
-    src/tensor.cpp
     src/ops.cpp
 )
 
@@ -23,10 +22,14 @@ target_link_libraries(engine_runner PRIVATE engine_core)
 # Automated testing suite
 enable_testing()
 
-add_executable(test_tensor tests/test_tensor.cpp)
-target_link_libraries(test_tensor PRIVATE engine_core)
-add_test(NAME TensorSanityTest COMMAND test_tensor)
+# Tensor baseline tests (tests/test_main.cpp exists in repo)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_main.cpp")
+    add_executable(test_tensor tests/test_main.cpp)
+    target_link_libraries(test_tensor PRIVATE engine_core)
+    add_test(NAME TensorSanityTest COMMAND test_tensor)
+endif()
 
+# Day 3 & 4 GEMM tests
 add_executable(test_gemm tests/test_gemm.cpp)
 target_link_libraries(test_gemm PRIVATE engine_core)
 add_test(NAME GemmCorrectnessTest COMMAND test_gemm)
