@@ -1,58 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="900" height="240">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" width="100%" height="240">
   <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .box { fill: #161b22; stroke: #30363d; stroke-width: 2; rx: 8; }
+      .box-active { fill: #161b22; stroke: #58a6ff; stroke-width: 2; rx: 8; }
+      .title-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 600; fill: #58a6ff; }
+      .body-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; fill: #8b949e; }
+      .arrow { stroke: #8b949e; stroke-width: 2; marker-end: url(#arrowhead); }
+    </style>
     <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+      <polygon points="0 0, 8 3, 0 6" fill="#8b949e" />
     </marker>
   </defs>
 
-  <rect width="900" height="240" fill="#0d1117"/>
+  <rect width="100%" height="100%" class="bg" />
 
   <!-- Stage 1 -->
   <g transform="translate(30, 40)">
-    <rect width="180" height="150" fill="#161b22" stroke="#30363d" stroke-width="2" rx="8"/>
-    <text x="20" y="26" font-family="sans-serif" font-size="13" font-weight="600" fill="#58a6ff">Stage 1: FP32 Baseline</text>
-    <text x="20" y="55" font-family="sans-serif" font-size="11" fill="#8b949e">• Continuous 1D Buffer</text>
-    <text x="20" y="75" font-family="sans-serif" font-size="11" fill="#8b949e">• Naive GEMM Kernel</text>
-    <text x="20" y="95" font-family="sans-serif" font-size="11" fill="#8b949e">• Emulated FPU Baseline</text>
-    <text x="20" y="125" font-family="sans-serif" font-size="11" fill="#f85149">[High Cycle Overhead]</text>
+    <rect width="180" height="150" class="box" />
+    <text x="20" y="26" class="title-text">Stage 1: FP32 Baseline</text>
+    <text x="20" y="55" class="body-text">• Continuous 1D Buffer</text>
+    <text x="20" y="75" class="body-text">• Naive GEMM Kernel</text>
+    <text x="20" y="95" class="body-text">• Emulated FPU Baseline</text>
+    <text x="20" y="125" class="body-text" fill="#f85149">[High Cycle Overhead]</text>
   </g>
 
   <!-- Arrow 1 -> 2 -->
-  <line x1="210" y1="115" x2="250" y2="115" stroke="#8b949e" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="210" y1="115" x2="250" y2="115" class="arrow" />
 
   <!-- Stage 2 -->
   <g transform="translate(250, 40)">
-    <rect width="180" height="150" fill="#161b22" stroke="#58a6ff" stroke-width="2" rx="8"/>
-    <text x="24" y="26" font-family="sans-serif" font-size="13" font-weight="600" fill="#58a6ff">Stage 2: Quantize</text>
-    <text x="20" y="55" font-family="sans-serif" font-size="11" fill="#8b949e">• Affine FP32 → INT8</text>
-    <text x="20" y="75" font-family="sans-serif" font-size="11" fill="#8b949e">• 75% Footprint Reduction</text>
-    <text x="20" y="95" font-family="sans-serif" font-size="11" fill="#8b949e">• 32-bit Accumulator</text>
-    <text x="20" y="125" font-family="sans-serif" font-size="11" fill="#3fb950">[Memory Compressed]</text>
+    <rect width="180" height="150" class="box-active" />
+    <text x="24" y="26" class="title-text">Stage 2: Quantize</text>
+    <text x="20" y="55" class="body-text">• Affine FP32 → INT8</text>
+    <text x="20" y="75" class="body-text">• 75% Footprint Reduction</text>
+    <text x="20" y="95" class="body-text">• 32-bit Accumulator</text>
+    <text x="20" y="125" class="body-text" fill="#3fb950">[Memory Compressed]</text>
   </g>
 
   <!-- Arrow 2 -> 3 -->
-  <line x1="430" y1="115" x2="470" y2="115" stroke="#8b949e" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="430" y1="115" x2="470" y2="115" class="arrow" />
 
   <!-- Stage 3 -->
   <g transform="translate(470, 40)">
-    <rect width="180" height="150" fill="#161b22" stroke="#30363d" stroke-width="2" rx="8"/>
-    <text x="18" y="26" font-family="sans-serif" font-size="13" font-weight="600" fill="#58a6ff">Stage 3: 4-Way SIMD RTL</text>
-    <text x="20" y="55" font-family="sans-serif" font-size="11" fill="#8b949e">• Register Packing (32b)</text>
-    <text x="20" y="75" font-family="sans-serif" font-size="11" fill="#8b949e">• Custom-0 ISA Instruction</text>
-    <text x="20" y="95" font-family="sans-serif" font-size="11" fill="#8b949e">• 1-Cycle Parallel MAC</text>
-    <text x="20" y="125" font-family="sans-serif" font-size="11" fill="#58a6ff">[4x Compute Density]</text>
+    <rect width="180" height="150" class="box" />
+    <text x="18" y="26" class="title-text">Stage 3: 4-Way SIMD RTL</text>
+    <text x="20" y="55" class="body-text">• Register Packing (32b)</text>
+    <text x="20" y="75" class="body-text">• Custom-0 ISA Instruction</text>
+    <text x="20" y="95" class="body-text">• 1-Cycle Parallel MAC</text>
+    <text x="20" y="125" class="body-text" fill="#58a6ff">[4x Compute Density]</text>
   </g>
 
   <!-- Arrow 3 -> 4 -->
-  <line x1="650" y1="115" x2="690" y2="115" stroke="#8b949e" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="650" y1="115" x2="690" y2="115" class="arrow" />
 
   <!-- Stage 4 -->
   <g transform="translate(690, 40)">
-    <rect width="180" height="150" fill="#161b22" stroke="#30363d" stroke-width="2" rx="8"/>
-    <text x="20" y="26" font-family="sans-serif" font-size="13" font-weight="600" fill="#58a6ff">Stage 4: Cycle Audit</text>
-    <text x="20" y="55" font-family="sans-serif" font-size="11" fill="#8b949e">• Bare-Metal Execution</text>
-    <text x="20" y="75" font-family="sans-serif" font-size="11" fill="#8b949e">• 3-Way Cycle Comparison</text>
-    <text x="20" y="95" font-family="sans-serif" font-size="11" fill="#8b949e">• Latency &amp; IPC Metrics</text>
-    <text x="20" y="125" font-family="sans-serif" font-size="11" fill="#d29922">[Verified Speedup]</text>
+    <rect width="180" height="150" class="box" />
+    <text x="20" y="26" class="title-text">Stage 4: Cycle Audit</text>
+    <text x="20" y="55" class="body-text">• Bare-Metal Execution</text>
+    <text x="20" y="75" class="body-text">• 3-Way Cycle Comparison</text>
+    <text x="20" y="95" class="body-text">• Latency &amp; IPC Metrics</text>
+    <text x="20" y="125" class="body-text" fill="#d29922">[Verified Speedup]</text>
   </g>
 </svg>
