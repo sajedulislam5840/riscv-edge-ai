@@ -1,4 +1,4 @@
-﻿// Deterministic synthetic weights matching 784 -> 128 -> 10 MLP
+﻿// Clean mathematical weight initialization
 const ModelWeights = {
   W1: new Float32Array(784 * 128),
   b1: new Float32Array(128),
@@ -6,22 +6,22 @@ const ModelWeights = {
   b2: new Float32Array(10)
 };
 
-(function initializeTrainedFeatures() {
+(function initializeWeights() {
   for (let r = 0; r < 784; r++) {
     const row = Math.floor(r / 28);
     const col = r % 28;
     const centerDist = Math.hypot(row - 14, col - 14);
     for (let c = 0; c < 128; c++) {
       const freq = (c % 8) + 1;
-      ModelWeights.W1[r * 128 + c] = Math.sin(col * 0.2 * freq) * Math.cos(row * 0.2 * freq) * 0.4 * (centerDist < 12 ? 1.4 : 0.1);
+      ModelWeights.W1[r * 128 + c] = Math.sin(col * 0.25 * freq) * Math.cos(row * 0.25 * freq) * 0.35 * (centerDist < 11 ? 1.6 : 0.1);
     }
   }
   for (let i = 0; i < 128; i++) {
-    ModelWeights.b1[i] = -0.05 + (i % 5) * 0.02;
+    ModelWeights.b1[i] = -0.04 + (i % 7) * 0.015;
   }
   for (let r = 0; r < 128; r++) {
     for (let c = 0; c < 10; c++) {
-      ModelWeights.W2[r * 10 + c] = Math.sin((r + 1) * (c + 1) * 0.3) * 0.4;
+      ModelWeights.W2[r * 10 + c] = Math.sin((r + 1) * (c + 1) * 0.28) * 0.45;
     }
   }
   for (let i = 0; i < 10; i++) {
@@ -30,11 +30,9 @@ const ModelWeights = {
 })();
 
 class DigitCanvas {
-  constructor(canvasId, previewId) {
+  constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
-    this.previewCanvas = document.getElementById(previewId);
-    this.previewCtx = this.previewCanvas.getContext('2d');
     this.isDrawing = false;
     this.setupListeners();
     this.clear();
@@ -49,7 +47,6 @@ class DigitCanvas {
       if (!this.isDrawing) return;
       this.isDrawing = false;
       this.ctx.beginPath();
-      this.updateDownsampled();
       if (window.triggerInference) window.triggerInference();
     };
 
@@ -63,13 +60,11 @@ class DigitCanvas {
 
     document.getElementById('btn-clear').addEventListener('click', () => {
       this.clear();
-      this.updateDownsampled();
       if (window.triggerInference) window.triggerInference();
     });
 
     document.getElementById('btn-invert').addEventListener('click', () => {
       this.invert();
-      this.updateDownsampled();
       if (window.triggerInference) window.triggerInference();
     });
   }
@@ -80,7 +75,7 @@ class DigitCanvas {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    this.ctx.lineWidth = 16;
+    this.ctx.lineWidth = 14;
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
     this.ctx.strokeStyle = '#ffffff';
@@ -89,7 +84,6 @@ class DigitCanvas {
     this.ctx.stroke();
     this.ctx.beginPath();
     this.ctx.moveTo(x, y);
-    this.updateDownsampled();
   }
 
   clear() {
@@ -109,13 +103,14 @@ class DigitCanvas {
     this.ctx.putImageData(imgData, 0, 0);
   }
 
-  updateDownsampled() {
-    this.previewCtx.drawImage(this.canvas, 0, 0, 28, 28);
-  }
-
   getDownsampledPixels() {
-    this.updateDownsampled();
-    const img = this.previewCtx.getImageData(0, 0, 28, 28).data;
+    const off = document.createElement('canvas');
+    off.width = 28;
+    off.height = 28;
+    const offCtx = off.getContext('2d');
+    offCtx.drawImage(this.canvas, 0, 0, 28, 28);
+    const img = offCtx.getImageData(0, 0, 28, 28).data;
+
     const tensor = new Float32Array(784);
     for (let i = 0; i < 784; i++) {
       tensor[i] = (img[i * 4] / 127.5) - 1.0;
