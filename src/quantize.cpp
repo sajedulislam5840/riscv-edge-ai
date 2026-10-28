@@ -10,7 +10,6 @@ namespace engine
             std::swap(min_val, max_val);
         }
 
-        // Ensure range includes zero
         min_val = std::min(min_val, 0.0f);
         max_val = std::max(max_val, 0.0f);
 
@@ -19,7 +18,6 @@ namespace engine
             return {1.0f, 0};
         }
 
-        // Map [min_val, max_val] to signed INT8 range [-128, 127]
         float scale = (max_val - min_val) / 255.0f;
         float initial_zp = -128.0f - (min_val / scale);
 
@@ -71,72 +69,69 @@ namespace engine
         return output;
     }
 
-    // Quantized matrix multiplication with 32-bit accumulator
-    void matmul_int8(
-        const QuantizedTensor &A,
-        const QuantizedTensor &B,
-        QuantizedTensor &C)
+    void matmul_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
     {
         if (A.cols() != B.rows())
         {
-            throw std::invalid_argument("Matrix dimension mismatch for INT8 GEMM");
+            throw std::invalid_argument("Dimension mismatch in matmul_int8: A.cols != B.rows");
         }
 
-        size_t M = A.rows();
-        size_t K = A.cols();
-        size_t N = B.cols();
+        const size_t M = A.rows();
+        const size_t K = A.cols();
+        const size_t N = B.cols();
 
-        if (C.rows() != M || C.cols() != N)
-        {
-            throw std::invalid_argument("Output matrix C has incorrect dimensions");
-        }
+        const int32_t zp_A = A.params().zero_point;
+        const int32_t zp_B = B.params().zero_point;
+        const int32_t zp_C = C.params().zero_point;
 
-        const int8_t *a_data = A.data();
-        const int8_t *b_data = B.data();
-        int8_t *c_data = C.data();
-
-        const QuantParams &a_params = A.params();
-        const QuantParams &b_params = B.params();
-        const QuantParams &c_params = C.params();
-
-        // Compute combined scale factors for efficient requantization
-        float output_scale = (a_params.scale * b_params.scale) / c_params.scale;
-
-        // Pre-compute zero-point contributions for optimization
-        int32_t a_zp = a_params.zero_point;
-        int32_t b_zp = b_params.zero_point;
-        int32_t c_zp = c_params.zero_point;
+        const float effective_scale = (A.params().scale * B.params().scale) / C.params().scale;
 
         for (size_t i = 0; i < M; ++i)
         {
             for (size_t j = 0; j < N; ++j)
             {
-                // Use 32-bit accumulator to prevent overflow
-                // INT8 × INT8 = INT16, sum of K terms requires INT32
                 int32_t acc = 0;
-
                 for (size_t k = 0; k < K; ++k)
                 {
-                    int8_t a_val = a_data[i * K + k];
-                    int8_t b_val = b_data[k * N + j];
-
-                    // Dequantize, multiply, and accumulate in INT32
-                    int32_t a_dq = static_cast<int32_t>(a_val) - a_zp;
-                    int32_t b_dq = static_cast<int32_t>(b_val) - b_zp;
-
-                    acc += a_dq * b_dq;
+                    int32_t val_A = static_cast<int32_t>(A(i, k)) - zp_A;
+                    int32_t val_B = static_cast<int32_t>(B(k, j)) - zp_B;
+                    acc += val_A * val_B;
                 }
 
-                // Requantize: apply combined scale factor
-                float acc_fp = static_cast<float>(acc) * output_scale;
-                acc_fp += static_cast<float>(c_zp);
+                float scaled_acc = static_cast<float>(acc) * effective_scale;
+                int32_t res = static_cast<int32_t>(std::round(scaled_acc)) + zp_C;
+                C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
+            }
+        }
+    }
 
-                // Clamp to INT8 range and store result
-                int32_t result = std::clamp(
-                    static_cast<int32_t>(std::round(acc_fp)),
-                    -128,
-                    127);
-                c_data[i * N + j] = static_cast<int8_t>(result);
+    // In-place broadcast bias addition: X[i, j] = X[i, j] + bias[0, j]
+    void bias_add(QuantizedTensor &X, const QuantizedTensor &bias)
+    {
+        if (bias.rows() != 1 || bias.cols() != X.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in quantized bias_add: bias must be 1 x cols.");
+        }
+
+        const size_t rows = X.rows();
+        const size_t cols = X.cols();
+
+        const float S_x = X.params().scale;
+        const int32_t Z_x = X.params().zero_point;
+        const float S_b = bias.params().scale;
+        const int32_t Z_b = bias.params().zero_point;
+
+        for (size_t r = 0; r < rows; ++r)
+        {
+            for (size_t c = 0; c < cols; ++c)
+            {
+                // Reconstruct real values and requantize back to X's scale domain
+                float real_x = (static_cast<float>(X(r, c)) - Z_x) * S_x;
+                float real_b = (static_cast<float>(bias(0, c)) - Z_b) * S_b;
+                float sum = real_x + real_b;
+
+                int32_t q_res = static_cast<int32_t>(std::round(sum / S_x)) + Z_x;
+                X(r, c) = static_cast<int8_t>(std::clamp(q_res, -128, 127));
             }
         }
     }
