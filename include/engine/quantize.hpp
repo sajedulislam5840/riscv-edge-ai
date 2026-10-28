@@ -18,16 +18,10 @@ namespace engine
         int32_t zero_point;
     };
 
-    // Calculate scale and zero-point with edge-case protection (zero range, subnormal values)
     QuantParams calculate_quant_params(float min_val, float max_val);
-
-    // Convert single float value to INT8 with clamping
     int8_t quantize_val(float val, const QuantParams &params);
-
-    // Convert single INT8 value to float
     float dequantize_val(int8_t val, const QuantParams &params);
 
-    // Quantized Tensor wrapper with fixed-point metadata
     class QuantizedTensor
     {
     public:
@@ -46,7 +40,6 @@ namespace engine
         size_t rows() const { return rows_; }
         size_t cols() const { return cols_; }
         size_t size() const { return data_.size(); }
-        bool empty() const { return data_.empty(); }
 
         const QuantParams &params() const { return params_; }
         void set_params(const QuantParams &params) { params_ = params; }
@@ -94,11 +87,9 @@ namespace engine
         std::vector<int8_t> data_;
     };
 
-    // Conversions
     QuantizedTensor quantize_tensor(const Tensor<float> &input, const QuantParams &params);
     Tensor<float> dequantize_tensor(const QuantizedTensor &input);
 
-    // Kernels with edge-case validation
     void matmul_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
     void bias_add(QuantizedTensor &X, const QuantizedTensor &bias);
     void relu(QuantizedTensor &X);
