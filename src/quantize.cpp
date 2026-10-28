@@ -49,7 +49,7 @@ namespace engine
     QuantizedTensor quantize_tensor(const Tensor<float> &input, const QuantParams &params)
     {
         QuantizedTensor output(input.rows(), input.cols(), params);
-        if (input.empty())
+        if (input.size() == 0)
         {
             return output;
         }
@@ -68,7 +68,7 @@ namespace engine
     Tensor<float> dequantize_tensor(const QuantizedTensor &input)
     {
         Tensor<float> output(input.rows(), input.cols(), 0.0f);
-        if (input.empty())
+        if (input.size() == 0)
         {
             return output;
         }
@@ -87,7 +87,7 @@ namespace engine
 
     void matmul_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
     {
-        if (A.empty() || B.empty())
+        if (A.size() == 0 || B.size() == 0)
         {
             throw std::invalid_argument("Cannot perform matmul_int8 on empty tensor.");
         }
@@ -131,7 +131,7 @@ namespace engine
 
     void bias_add(QuantizedTensor &X, const QuantizedTensor &bias)
     {
-        if (X.empty())
+        if (X.size() == 0)
         {
             return;
         }
@@ -164,7 +164,7 @@ namespace engine
 
     void relu(QuantizedTensor &X)
     {
-        if (X.empty())
+        if (X.size() == 0)
         {
             return;
         }
@@ -187,7 +187,7 @@ namespace engine
         {
             throw std::invalid_argument("Dimension mismatch in out-of-place quantized relu.");
         }
-        if (input.empty())
+        if (input.size() == 0)
         {
             return;
         }
