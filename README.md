@@ -410,11 +410,19 @@ This project bridges three critical domains in modern computer engineering:
 ## 📖 Documentation & Resources
 
 ### Internal Documentation
-- [**PHASE_01_COMPLETE.md**](PHASE_01_COMPLETE.md) — Detailed Phase 01 retrospective with code metrics
+- [**docs/PHASE_01_COMPLETE.md**](docs/PHASE_01_COMPLETE.md) — Detailed Phase 01 retrospective with FP32 software baseline & code metrics
+- [**docs/PHASE_02_COMPLETE.md**](docs/PHASE_02_COMPLETE.md) — Phase 02 technical report: Fixed-point derivations, Q31 multiplier scaling, and arena memory design
 - [**docs/BENCHMARK_RESULTS.md**](docs/BENCHMARK_RESULTS.md) — [Phase 2.5] Empirical validation and performance analysis
 - [**docs/architecture_spec.md**](docs/architecture_spec.md) — [Phase 03] ISA extension encoding and microarchitectural specifications
-- [**docs/quantization_spec.md**](docs/quantization_spec.md) — [Phase 02] Mathematical derivations for quantization schemes
-- [**web/README.md**](web/README.md) — Web demo architecture and development guide
+- [**docs/quantization_spec.md**](docs/quantization_spec.md) — Complete mathematical derivations for INT8 affine and per-channel quantization schemes
+- [**web/README.md**](web/README.md) — Web demo architecture and interactive visualization guide
+
+### External References & Specifications
+- **RISC-V ISA Specification:** [riscv.org/specifications](https://riscv.org/technical/specifications/)
+- **Quantization Survey:** Gholami et al., *"A Survey of Quantization Methods for Efficient Neural Network Inference"* (2021)
+- **Edge AI Benchmarks:** MLPerf Tiny, TinyML Papers and Systems Conference proceedings
+- **MNIST Dataset:** LeCun et al., *"Gradient-based learning applied to document recognition"* (1998)
+- **gemmlowp / TFLite Micro:** Low-precision matrix multiplication fixed-point reference models
 
 ### External References
 - **RISC-V ISA Specification:** [riscv.org/specifications](https://riscv.org/technical/specifications/)
