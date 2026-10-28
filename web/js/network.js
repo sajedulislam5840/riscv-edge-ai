@@ -1,4 +1,4 @@
-﻿// Mock weights for the 784 -> 128 -> 10 MLP model
+﻿// Deterministic synthetic weights matching 784 -> 128 -> 10 MLP
 const ModelWeights = {
   W1: new Float32Array(784 * 128),
   b1: new Float32Array(128),
@@ -6,32 +6,35 @@ const ModelWeights = {
   b2: new Float32Array(10)
 };
 
-// Seed synthetic weights that respond strongly to centered digit strokes
-(function initializeSyntheticWeights() {
-  for (let i = 0; i < 784 * 128; i++) {
-    const r = Math.floor(i / 128);
-    const c = i % 128;
-    const distFromCenter = Math.hypot((r % 28) - 14, Math.floor(r / 28) - 14);
-    ModelWeights.W1[i] = (Math.sin(i * 0.13) * 0.4) * (distFromCenter < 10 ? 1.5 : 0.2);
+(function initializeTrainedFeatures() {
+  for (let r = 0; r < 784; r++) {
+    const row = Math.floor(r / 28);
+    const col = r % 28;
+    const centerDist = Math.hypot(row - 14, col - 14);
+    for (let c = 0; c < 128; c++) {
+      const freq = (c % 8) + 1;
+      ModelWeights.W1[r * 128 + c] = Math.sin(col * 0.2 * freq) * Math.cos(row * 0.2 * freq) * 0.4 * (centerDist < 12 ? 1.4 : 0.1);
+    }
   }
   for (let i = 0; i < 128; i++) {
-    ModelWeights.b1[i] = (Math.sin(i) * 0.05);
+    ModelWeights.b1[i] = -0.05 + (i % 5) * 0.02;
   }
-  for (let i = 0; i < 128 * 10; i++) {
-    const hiddenIdx = Math.floor(i / 10);
-    const classIdx = i % 10;
-    ModelWeights.W2[i] = Math.cos(hiddenIdx * 0.3 + classIdx) * 0.5;
+  for (let r = 0; r < 128; r++) {
+    for (let c = 0; c < 10; c++) {
+      ModelWeights.W2[r * 10 + c] = Math.sin((r + 1) * (c + 1) * 0.3) * 0.4;
+    }
   }
   for (let i = 0; i < 10; i++) {
     ModelWeights.b2[i] = 0.0;
   }
 })();
 
-// Canvas Controller
 class DigitCanvas {
-  constructor(canvasId) {
+  constructor(canvasId, previewId) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
+    this.previewCanvas = document.getElementById(previewId);
+    this.previewCtx = this.previewCanvas.getContext('2d');
     this.isDrawing = false;
     this.setupListeners();
     this.clear();
@@ -43,8 +46,10 @@ class DigitCanvas {
       this.draw(e);
     };
     const stop = () => {
+      if (!this.isDrawing) return;
       this.isDrawing = false;
       this.ctx.beginPath();
+      this.updateDownsampled();
       if (window.triggerInference) window.triggerInference();
     };
 
@@ -58,11 +63,13 @@ class DigitCanvas {
 
     document.getElementById('btn-clear').addEventListener('click', () => {
       this.clear();
+      this.updateDownsampled();
       if (window.triggerInference) window.triggerInference();
     });
 
     document.getElementById('btn-invert').addEventListener('click', () => {
       this.invert();
+      this.updateDownsampled();
       if (window.triggerInference) window.triggerInference();
     });
   }
@@ -73,14 +80,16 @@ class DigitCanvas {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    this.ctx.lineWidth = 18;
+    this.ctx.lineWidth = 16;
     this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
     this.ctx.strokeStyle = '#ffffff';
 
     this.ctx.lineTo(x, y);
     this.ctx.stroke();
     this.ctx.beginPath();
     this.ctx.moveTo(x, y);
+    this.updateDownsampled();
   }
 
   clear() {
@@ -100,17 +109,15 @@ class DigitCanvas {
     this.ctx.putImageData(imgData, 0, 0);
   }
 
-  getDownsampledPixels() {
-    const off = document.createElement('canvas');
-    off.width = 28;
-    off.height = 28;
-    const offCtx = off.getContext('2d');
-    offCtx.drawImage(this.canvas, 0, 0, 28, 28);
-    const img = offCtx.getImageData(0, 0, 28, 28).data;
+  updateDownsampled() {
+    this.previewCtx.drawImage(this.canvas, 0, 0, 28, 28);
+  }
 
+  getDownsampledPixels() {
+    this.updateDownsampled();
+    const img = this.previewCtx.getImageData(0, 0, 28, 28).data;
     const tensor = new Float32Array(784);
     for (let i = 0; i < 784; i++) {
-      // Normalize [0, 255] -> [-1.0, 1.0]
       tensor[i] = (img[i * 4] / 127.5) - 1.0;
     }
     return tensor;
