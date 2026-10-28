@@ -10,6 +10,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <cstddef>
 
 namespace engine
 {
@@ -48,6 +49,58 @@ namespace engine
 
     void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift);
     int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift);
+
+    // Commit 22: Static Arena Allocator for Bare-Metal Memory Planning
+    class ArenaAllocator
+    {
+    public:
+        ArenaAllocator(size_t capacity)
+            : capacity_(capacity), offset_(0), peak_(0), buffer_(capacity > 0 ? new uint8_t[capacity] : nullptr) {}
+
+        ~ArenaAllocator()
+        {
+            delete[] buffer_;
+        }
+
+        ArenaAllocator(const ArenaAllocator &) = delete;
+        ArenaAllocator &operator=(const ArenaAllocator &) = delete;
+
+        void *allocate(size_t bytes, size_t alignment = 8)
+        {
+            size_t current = reinterpret_cast<size_t>(buffer_ + offset_);
+            size_t aligned = (current + (alignment - 1)) & ~(alignment - 1);
+            size_t pad = aligned - current;
+
+            if (offset_ + pad + bytes > capacity_)
+            {
+                throw std::bad_alloc();
+            }
+
+            offset_ += pad;
+            void *ptr = buffer_ + offset_;
+            offset_ += bytes;
+            if (offset_ > peak_)
+            {
+                peak_ = offset_;
+            }
+            return ptr;
+        }
+
+        void reset()
+        {
+            offset_ = 0;
+        }
+
+        size_t used() const { return offset_; }
+        size_t peak() const { return peak_; }
+        size_t capacity() const { return capacity_; }
+
+    private:
+        size_t capacity_;
+        size_t offset_;
+        size_t peak_;
+        uint8_t *buffer_;
+    };
 
     class QuantizedTensor
     {
@@ -207,10 +260,8 @@ namespace engine
     void leaky_relu(QuantizedTensor &X, float alpha = 0.1f);
     void leaky_relu(const QuantizedTensor &input, QuantizedTensor &output, float alpha = 0.1f);
 
-    // Commit 19: Quantized Element-Wise Addition (ResNet Skip Connections)
     void add_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
 
-    // Commit 20: Quantized 2D Pooling Kernels
     void maxpool2d_int8(
         const QuantizedTensor &input,
         QuantizedTensor &output,
@@ -227,7 +278,6 @@ namespace engine
         size_t stride_h,
         size_t stride_w);
 
-    // Commit 21: Model Parameter Serialization / Deserialization
     void save_quantized_model(const std::string &filepath, const std::vector<QuantizedTensor> &tensors);
     std::vector<QuantizedTensor> load_quantized_model(const std::string &filepath);
 
