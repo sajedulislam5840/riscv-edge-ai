@@ -10,11 +10,9 @@ namespace engine
             std::swap(min_val, max_val);
         }
 
-        // Ensure range includes zero to preserve zero-point representation
         min_val = std::min(min_val, 0.0f);
         max_val = std::max(max_val, 0.0f);
 
-        // Edge case: constant or near-zero range
         if (std::abs(max_val - min_val) < 1e-7f)
         {
             return {1.0f, 0};
@@ -27,6 +25,59 @@ namespace engine
         zero_point = std::clamp(zero_point, -128, 127);
 
         return {scale, zero_point};
+    }
+
+    PerChannelQuantParams calculate_per_channel_params(const Tensor<float> &weight, bool per_column)
+    {
+        if (weight.size() == 0)
+        {
+            return {{}, {}};
+        }
+
+        PerChannelQuantParams result;
+        const size_t channels = per_column ? weight.cols() : weight.rows();
+        result.scales.resize(channels);
+        result.zero_points.resize(channels);
+
+        if (per_column)
+        {
+            for (size_t c = 0; c < channels; ++c)
+            {
+                float min_v = weight(0, c);
+                float max_v = weight(0, c);
+                for (size_t r = 1; r < weight.rows(); ++r)
+                {
+                    float v = weight(r, c);
+                    if (v < min_v)
+                        min_v = v;
+                    if (v > max_v)
+                        max_v = v;
+                }
+                QuantParams p = calculate_quant_params(min_v, max_v);
+                result.scales[c] = p.scale;
+                result.zero_points[c] = p.zero_point;
+            }
+        }
+        else
+        {
+            for (size_t r = 0; r < channels; ++r)
+            {
+                float min_v = weight(r, 0);
+                float max_v = weight(r, 0);
+                for (size_t c = 1; c < weight.cols(); ++c)
+                {
+                    float v = weight(r, c);
+                    if (v < min_v)
+                        min_v = v;
+                    if (v > max_v)
+                        max_v = v;
+                }
+                QuantParams p = calculate_quant_params(min_v, max_v);
+                result.scales[r] = p.scale;
+                result.zero_points[r] = p.zero_point;
+            }
+        }
+        return result;
     }
 
     int8_t quantize_val(float val, const QuantParams &params)
@@ -50,9 +101,7 @@ namespace engine
     {
         QuantizedTensor output(input.rows(), input.cols(), params);
         if (input.size() == 0)
-        {
             return output;
-        }
 
         const float *in_data = input.data();
         int8_t *out_data = output.data();
@@ -69,9 +118,7 @@ namespace engine
     {
         Tensor<float> output(input.rows(), input.cols(), 0.0f);
         if (input.size() == 0)
-        {
             return output;
-        }
 
         const int8_t *in_data = input.data();
         float *out_data = output.data();
@@ -81,6 +128,51 @@ namespace engine
         for (size_t i = 0; i < total; ++i)
         {
             out_data[i] = dequantize_val(in_data[i], params);
+        }
+        return output;
+    }
+
+    QuantizedTensor quantize_tensor_per_channel(const Tensor<float> &input, const PerChannelQuantParams &params)
+    {
+        if (params.num_channels() != input.cols())
+        {
+            throw std::invalid_argument("Per-channel params count must match input columns.");
+        }
+
+        QuantParams fallback = {params.scales[0], params.zero_points[0]};
+        QuantizedTensor output(input.rows(), input.cols(), fallback);
+        if (input.size() == 0)
+            return output;
+
+        for (size_t r = 0; r < input.rows(); ++r)
+        {
+            for (size_t c = 0; c < input.cols(); ++c)
+            {
+                QuantParams ch_param = {params.scales[c], params.zero_points[c]};
+                output(r, c) = quantize_val(input(r, c), ch_param);
+            }
+        }
+        return output;
+    }
+
+    Tensor<float> dequantize_tensor_per_channel(const QuantizedTensor &input, const PerChannelQuantParams &params)
+    {
+        if (params.num_channels() != input.cols())
+        {
+            throw std::invalid_argument("Per-channel params count must match input columns.");
+        }
+
+        Tensor<float> output(input.rows(), input.cols(), 0.0f);
+        if (input.size() == 0)
+            return output;
+
+        for (size_t r = 0; r < input.rows(); ++r)
+        {
+            for (size_t c = 0; c < input.cols(); ++c)
+            {
+                QuantParams ch_param = {params.scales[c], params.zero_points[c]};
+                output(r, c) = dequantize_val(input(r, c), ch_param);
+            }
         }
         return output;
     }
@@ -129,12 +221,63 @@ namespace engine
         }
     }
 
+    void matmul_int8_per_channel(const QuantizedTensor &A,
+                                 const QuantizedTensor &B,
+                                 const PerChannelQuantParams &B_params,
+                                 QuantizedTensor &C)
+    {
+        if (A.size() == 0 || B.size() == 0)
+        {
+            throw std::invalid_argument("Cannot perform matmul on empty tensor.");
+        }
+        if (A.cols() != B.rows())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_per_channel: A.cols must match B.rows.");
+        }
+        if (B_params.num_channels() != B.cols())
+        {
+            throw std::invalid_argument("Per-channel parameters count must equal B.cols().");
+        }
+        if (C.rows() != A.rows() || C.cols() != B.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_per_channel: Output tensor C dimension invalid.");
+        }
+
+        const size_t M = A.rows();
+        const size_t K = A.cols();
+        const size_t N = B.cols();
+
+        const int32_t zp_A = A.params().zero_point;
+        const float scale_A = A.params().scale;
+        const int32_t zp_C = C.params().zero_point;
+        const float scale_C = C.params().scale;
+
+        for (size_t j = 0; j < N; ++j)
+        {
+            const int32_t zp_B = B_params.zero_points[j];
+            const float effective_scale = (scale_A * B_params.scales[j]) / scale_C;
+
+            for (size_t i = 0; i < M; ++i)
+            {
+                int32_t acc = 0;
+                for (size_t k = 0; k < K; ++k)
+                {
+                    int32_t val_A = static_cast<int32_t>(A(i, k)) - zp_A;
+                    int32_t val_B = static_cast<int32_t>(B(k, j)) - zp_B;
+                    acc += val_A * val_B;
+                }
+
+                float scaled_acc = static_cast<float>(acc) * effective_scale;
+                int32_t res = static_cast<int32_t>(std::round(scaled_acc)) + zp_C;
+                C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
+            }
+        }
+    }
+
     void bias_add(QuantizedTensor &X, const QuantizedTensor &bias)
     {
         if (X.size() == 0)
-        {
             return;
-        }
         if (bias.rows() != 1 || bias.cols() != X.cols())
         {
             throw std::invalid_argument("Dimension mismatch in quantized bias_add: bias must be 1 x X.cols().");
@@ -165,9 +308,7 @@ namespace engine
     void relu(QuantizedTensor &X)
     {
         if (X.size() == 0)
-        {
             return;
-        }
         int8_t *ptr = X.data();
         const size_t total = X.size();
         const int8_t zp = static_cast<int8_t>(X.params().zero_point);
@@ -188,9 +329,7 @@ namespace engine
             throw std::invalid_argument("Dimension mismatch in out-of-place quantized relu.");
         }
         if (input.size() == 0)
-        {
             return;
-        }
 
         output.set_params(input.params());
         const int8_t *in_ptr = input.data();
