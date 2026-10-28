@@ -69,8 +69,8 @@ riscv-edge-ai/
 
 | Phase | Milestone Description | Target Timeline | Status |
 | :--- | :--- | :--- | :--- |
-| **Phase 01** | **Software Baseline:** Modular CMake harness, row-major tensor buffer, naive FP32 GEMM kernel | Days 01–07 | **`In Progress`** ⏳ |
-| **Phase 02** | **Software Quantization:** Affine FP32 → INT8 mapping, 32-bit accumulator, divergence bounds | Days 08–14 | `Planned` 📅 |
+| **Phase 01** | **Software Baseline:** Modular CMake harness, row-major tensor buffer, naive FP32 GEMM kernel, ReLU, bias addition, softmax, 2-layer MLP demo | Days 01–07 | **`✅ COMPLETE`** ✅ |
+| **Phase 02** | **Software Quantization:** Affine FP32 → INT8 mapping, 32-bit accumulator, divergence bounds | Days 08–14 | **`In Progress`** ⏳ |
 | **Phase 03** | **Hardware RTL Co-Design:** 4-way SIMD MAC PE in Verilog, sign-extension tree, custom-0 ISA mapping | Days 15–23 | `Planned` 📅 |
 | **Phase 04** | **Bare-Metal Integration:** Freestanding runtime, ELF binary loader, three-way cycle-accurate profiling | Days 24–33 | `Planned` 📅 |
 | **Phase 05** | **Academic Artifacts:** IEEE-format technical report, LaTeX proofs, reproducible release | Days 34–40 | `Planned` 📅 |

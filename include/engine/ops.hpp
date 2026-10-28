@@ -16,6 +16,14 @@ void relu(const Tensor<float>& X, Tensor<float>& Y);
 // In-place ReLU: X = max(0, X)
 void relu_inplace(Tensor<float>& X);
 
+// Bias addition: X = X + b (broadcast bias vector across rows)
+// X: (M x N), b: (1 x N) or (N,), modifies X in-place
+void bias_add(Tensor<float>& X, const Tensor<float>& bias);
+
+// Softmax activation (in-place, row-wise): X = exp(X) / sum(exp(X))
+// Numerically stable with max subtraction trick
+void softmax(Tensor<float>& X);
+
 } // namespace engine
 
 #endif // ENGINE_OPS_HPP
