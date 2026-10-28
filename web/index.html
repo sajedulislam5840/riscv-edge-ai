@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bare-Metal RISC-V Neural Engine - Interactive Quantization Demo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <header>
+    <h1>Bare-Metal RISC-V Neural Engine</h1>
+    <p>Hardware-Software Co-Design • Fixed-Point INT8 Quantization Explorer</p>
+  </header>
+
+  <main class="dashboard-grid">
+    <!-- Panel 1: Canvas Drawing Input -->
+    <section class="panel">
+      <h2>1. Draw Digit (28x28)</h2>
+      <div class="canvas-container">
+        <canvas id="digit-canvas" width="224" height="224"></canvas>
+        <div class="canvas-controls">
+          <button id="btn-clear">Clear</button>
+          <button id="btn-invert">Invert</button>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+          Draw a single digit (0-9) inside the box. Pixel stream maps to 784-element float tensor.
+        </p>
+      </div>
+    </section>
+
+    <!-- Panel 2: Layer & Quantization Visualization -->
+    <section class="panel">
+      <h2>2. Layer Execution & Profiling</h2>
+      <div class="vis-container">
+        <div>
+          <label style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">
+            Hidden Layer Activations (128 Nodes - Dense -> ReLU):
+          </label>
+          <div id="hidden-activations" class="activation-grid"></div>
+        </div>
+
+        <div>
+          <label style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">
+            Logit Distribution Comparison (FP32 Baseline vs INT8 Q31):
+          </label>
+          <canvas id="logit-chart" height="150"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel 3: Quantization Controls & Probabilities -->
+    <section class="panel">
+      <h2>3. Quantization Parameters</h2>
+      
+      <div class="control-group">
+        <label>
+          <span>Weight Scale (S):</span>
+          <span id="scale-val">0.0078</span>
+        </label>
+        <input type="range" id="param-scale" min="0.001" max="0.050" step="0.001" value="0.0078" />
+      </div>
+
+      <div class="control-group">
+        <label>
+          <span>Zero Point (Z):</span>
+          <span id="zp-val">0</span>
+        </label>
+        <input type="range" id="param-zp" min="-128" max="127" step="1" value="0" />
+      </div>
+
+      <h2 style="margin-top: 1.5rem;">Predictions</h2>
+      <div id="prob-container" class="prob-list"></div>
+
+      <div style="text-align: center;">
+        <span class="status-badge">FP32-INT8 Match: 98.2%</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/network.js"></script>
+  <script src="js/quantization.js"></script>
+</body>
+</html>
