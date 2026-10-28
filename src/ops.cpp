@@ -1,5 +1,6 @@
 #include "engine/ops.hpp"
 #include <algorithm>
+#include <cmath>
 
 namespace engine {
 
@@ -51,6 +52,60 @@ void relu_inplace(Tensor<float>& X) {
 
     for (size_t i = 0; i < total; ++i) {
         data[i] = std::max(0.0f, data[i]);
+    }
+}
+
+void bias_add(Tensor<float>& X, const Tensor<float>& bias) {
+    // X: (M x N), bias: (1 x N) or (N,)
+    size_t M = X.rows();
+    size_t N = X.cols();
+
+    // Support both (1, N) and (N, 1) bias shapes
+    bool valid = (bias.rows() == 1 && bias.cols() == N) ||
+                 (bias.rows() == N && bias.cols() == 1) ||
+                 (bias.rows() == 1 && bias.cols() == 1 && bias.size() == N);
+
+    if (!valid) {
+        throw std::invalid_argument("Bias dimensions must be (1 x N) or match columns of X.");
+    }
+
+    float* x_data = X.data();
+    const float* b_data = bias.data();
+
+    // Broadcast bias across all rows
+    for (size_t i = 0; i < M; ++i) {
+        for (size_t j = 0; j < N; ++j) {
+            x_data[i * N + j] += b_data[j];
+        }
+    }
+}
+
+void softmax(Tensor<float>& X) {
+    // Row-wise softmax with numerical stability (max subtraction trick)
+    size_t M = X.rows();
+    size_t N = X.cols();
+    float* data = X.data();
+
+    for (size_t i = 0; i < M; ++i) {
+        float* row = data + i * N;
+
+        // Find max value in the row for numerical stability
+        float max_val = row[0];
+        for (size_t j = 1; j < N; ++j) {
+            max_val = std::max(max_val, row[j]);
+        }
+
+        // Compute exp(x - max) and sum
+        float sum = 0.0f;
+        for (size_t j = 0; j < N; ++j) {
+            row[j] = std::exp(row[j] - max_val);
+            sum += row[j];
+        }
+
+        // Normalize
+        for (size_t j = 0; j < N; ++j) {
+            row[j] /= sum;
+        }
     }
 }
 
