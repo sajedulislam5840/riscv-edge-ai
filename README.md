@@ -291,8 +291,8 @@ For instant experimentation without toolchain installation:
 | Phase | Objectives | Status | ETA |
 |:------|:-----------|:------:|:---:|
 | **Phase 01** | FP32 baseline: GEMM, ReLU, Softmax, bias addition, 2-layer MLP demo | **✅ Complete** | Oct 2026 |
-| **Phase 02** | INT8 quantization: Affine mapping, scale/zero-point calibration, requantization | **🔄 In Progress** | Nov 2026 |
-| **Phase 2.5** | Experimental validation: MNIST benchmark, web visualization, performance profiling | **📅 Planned** | Nov 2026 |
+| **Phase 02** | INT8 quantization: Affine mapping, scale/zero-point calibration, requantization | **✅ Complete** | Oct 2026 |
+| **Phase 2.5** | Experimental validation: MNIST benchmark, web visualization, performance profiling | **🔄 In Progress** | Nov 2026 |
 | **Phase 03** | Hardware co-design: Verilog SIMD MAC, ISA extension, testbench validation | **📅 Planned** | Nov 2026 |
 | **Phase 04** | Bare-metal integration: Freestanding runtime, RISC-V simulator, cycle profiling | **📅 Planned** | Dec 2026 |
 | **Phase 05** | Documentation & publication: Technical report, LaTeX proofs, reproducibility package | **📅 Planned** | Dec 2026 |
