@@ -1,0 +1,191 @@
+﻿:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --accent-blue: #38bdf8;
+  --accent-purple: #818cf8;
+  --accent-green: #34d399;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #475569;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+header h1 {
+  font-size: 2.2rem;
+  color: var(--accent-blue);
+  margin-bottom: 0.5rem;
+}
+
+header p {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr 340px;
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.panel h2 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  color: var(--accent-blue);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+/* Canvas Input */
+.canvas-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+#digit-canvas {
+  background: #000;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.canvas-controls {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+button {
+  flex: 1;
+  background: var(--bg-tertiary);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background: var(--accent-blue);
+  color: var(--bg-primary);
+}
+
+/* Visualization Panel */
+.vis-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.activation-grid {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 3px;
+  background: var(--bg-primary);
+  padding: 0.5rem;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.act-cell {
+  aspect-ratio: 1;
+  background: #000;
+  border-radius: 2px;
+  transition: background-color 0.15s ease;
+}
+
+/* Quantization Controls */
+.control-group {
+  margin-bottom: 1.25rem;
+}
+
+.control-group label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-blue);
+}
+
+/* Probability Bars */
+.prob-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.prob-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.prob-bar-container {
+  flex: 1;
+  background: var(--bg-primary);
+  height: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.prob-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+  transition: width 0.2s ease;
+}
+
+.prob-row.top-prediction .prob-bar {
+  background: var(--accent-green);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--accent-green);
+  margin-top: 1rem;
+}
