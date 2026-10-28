@@ -18,7 +18,18 @@ namespace engine
         int32_t zero_point;
     };
 
+    // Commit 13: Per-channel quantization parameters (e.g., per output column/filter)
+    struct PerChannelQuantParams
+    {
+        std::vector<float> scales;
+        std::vector<int32_t> zero_points;
+
+        size_t num_channels() const { return scales.size(); }
+    };
+
     QuantParams calculate_quant_params(float min_val, float max_val);
+    PerChannelQuantParams calculate_per_channel_params(const Tensor<float> &weight, bool per_column = true);
+
     int8_t quantize_val(float val, const QuantParams &params);
     float dequantize_val(int8_t val, const QuantParams &params);
 
@@ -87,13 +98,25 @@ namespace engine
         std::vector<int8_t> data_;
     };
 
+    // Conversions
     QuantizedTensor quantize_tensor(const Tensor<float> &input, const QuantParams &params);
     Tensor<float> dequantize_tensor(const QuantizedTensor &input);
 
+    // Commit 13: Per-channel tensor quantization & dequantization
+    QuantizedTensor quantize_tensor_per_channel(const Tensor<float> &input, const PerChannelQuantParams &params);
+    Tensor<float> dequantize_tensor_per_channel(const QuantizedTensor &input, const PerChannelQuantParams &params);
+
+    // Standard Kernels
     void matmul_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
     void bias_add(QuantizedTensor &X, const QuantizedTensor &bias);
     void relu(QuantizedTensor &X);
     void relu(const QuantizedTensor &input, QuantizedTensor &output);
+
+    // Commit 13: Per-channel GEMM (A is per-tensor, B is per-channel weight)
+    void matmul_int8_per_channel(const QuantizedTensor &A,
+                                 const QuantizedTensor &B,
+                                 const PerChannelQuantParams &B_params,
+                                 QuantizedTensor &C);
 
 } // namespace engine
 
