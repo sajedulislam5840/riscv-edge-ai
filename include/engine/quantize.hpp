@@ -79,6 +79,13 @@ private:
 QuantizedTensor quantize_tensor(const Tensor<float>& input, const QuantParams& params);
 Tensor<float> dequantize_tensor(const QuantizedTensor& input);
 
+// Quantized matrix multiplication: C = A * B (INT8 with 32-bit accumulator)
+void matmul_int8(
+    const QuantizedTensor& A,
+    const QuantizedTensor& B,
+    QuantizedTensor& C
+);
+
 } // namespace engine
 
 #endif // ENGINE_QUANTIZE_HPP
