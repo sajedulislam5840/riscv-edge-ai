@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <stdexcept>
 #include <iostream>
+#include <string>
+#include <fstream>
 
 namespace engine
 {
@@ -193,7 +195,6 @@ namespace engine
     void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
     void matmul_int8_view(const QuantizedTensorView &A, const QuantizedTensorView &B, QuantizedTensorView &C);
 
-    // Commit 17: Offline BatchNorm Folding
     void fold_batch_norm(
         Tensor<float> &weight,
         Tensor<float> &bias,
@@ -203,9 +204,32 @@ namespace engine
         const Tensor<float> &beta,
         float epsilon = 1e-5f);
 
-    // Commit 18: Quantized LeakyReLU (Integer-only fixed point)
     void leaky_relu(QuantizedTensor &X, float alpha = 0.1f);
     void leaky_relu(const QuantizedTensor &input, QuantizedTensor &output, float alpha = 0.1f);
+
+    // Commit 19: Quantized Element-Wise Addition (ResNet Skip Connections)
+    void add_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
+
+    // Commit 20: Quantized 2D Pooling Kernels
+    void maxpool2d_int8(
+        const QuantizedTensor &input,
+        QuantizedTensor &output,
+        size_t kernel_h,
+        size_t kernel_w,
+        size_t stride_h,
+        size_t stride_w);
+
+    void avgpool2d_int8(
+        const QuantizedTensor &input,
+        QuantizedTensor &output,
+        size_t kernel_h,
+        size_t kernel_w,
+        size_t stride_h,
+        size_t stride_w);
+
+    // Commit 21: Model Parameter Serialization / Deserialization
+    void save_quantized_model(const std::string &filepath, const std::vector<QuantizedTensor> &tensors);
+    std::vector<QuantizedTensor> load_quantized_model(const std::string &filepath);
 
 } // namespace engine
 
