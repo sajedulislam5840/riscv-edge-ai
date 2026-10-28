@@ -1,55 +1,47 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d1117" />
+  <meta name="description"
+    content="Interactive FP32 vs INT8 quantization profiler for a bare-metal RISC-V neural runtime." />
   <title>RISC-V Bare-Metal Neural Runtime Profiler</title>
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
 
-  <!-- Top Hardware Telemetry Strip -->
   <header class="telemetry-bar">
     <div class="system-id">
+      <span class="live-dot" aria-hidden="true"></span>
       <span class="system-badge">RV32I_INT8</span>
       <span>RUNTIME: BARE-METAL (NO-FPU)</span>
     </div>
     <div class="metrics-cluster">
-      <div class="metric-group">
-        <span class="metric-k">SRAM PEAK:</span>
-        <span class="metric-v">924 B</span>
-      </div>
-      <div class="metric-group">
-        <span class="metric-k">ARENA CAP:</span>
-        <span class="metric-v">64.0 KB</span>
-      </div>
-      <div class="metric-group">
-        <span class="metric-k">TOTAL MACs:</span>
-        <span class="metric-v">101,632</span>
-      </div>
-      <div class="metric-group">
-        <span class="metric-k">PARITY:</span>
-        <span class="metric-v" id="live-parity">98.2%</span>
-      </div>
+      <div class="metric-group"><span class="metric-k">SRAM PEAK:</span><span class="metric-v">924 B</span></div>
+      <div class="metric-group"><span class="metric-k">ARENA CAP:</span><span class="metric-v">64.0 KB</span></div>
+      <div class="metric-group"><span class="metric-k">TOTAL MACs:</span><span class="metric-v">101,632</span></div>
+      <div class="metric-group"><span class="metric-k">PARITY:</span><span class="metric-v"
+          id="live-parity">98.2%</span></div>
     </div>
   </header>
 
-  <!-- Precision Workbench -->
   <main class="workbench-grid">
-    
-    <!-- Pane 1: Input Sensor & Memory Layout -->
-    <section class="pane">
+
+    <section class="pane" aria-label="Input acquisition">
       <div class="pane-header">
         <span>1. Input Acquisition</span>
         <span>X ∈ ℝ¹ˣ⁷⁸⁴</span>
       </div>
       <div class="pane-body">
         <div class="canvas-holder">
-          <canvas id="digit-canvas" width="224" height="224"></canvas>
+          <canvas id="digit-canvas" width="224" height="224" aria-label="Draw a digit here"></canvas>
           <div class="action-row">
-            <button id="btn-clear" class="action-btn">RESET</button>
-            <button id="btn-invert" class="action-btn">INVERT</button>
+            <button id="btn-clear" class="action-btn" type="button">RESET</button>
+            <button id="btn-invert" class="action-btn" type="button">INVERT</button>
           </div>
         </div>
 
@@ -58,23 +50,19 @@
           <div>STRIDE: 28 BYTES (CONTIGUOUS)</div>
         </div>
 
-        <div class="hex-view" id="hex-inspector">
-          <div class="hex-line"><span class="hex-addr">0x8000_1000:</span> <span class="hex-bytes">00 00 00 00 00 00 00 00</span></div>
-          <div class="hex-line"><span class="hex-addr">0x8000_1008:</span> <span class="hex-bytes">00 00 00 00 00 00 00 00</span></div>
-          <div class="hex-line"><span class="hex-addr">0x8000_1010:</span> <span class="hex-bytes">00 00 00 00 00 00 00 00</span></div>
-        </div>
+        <div class="hex-view" id="hex-inspector" aria-live="off"></div>
       </div>
     </section>
 
-    <!-- Pane 2: Execution Datapath & Logit Parity -->
-    <section class="pane">
+    <section class="pane" aria-label="Datapath execution">
       <div class="pane-header">
         <span>2. Datapath Execution</span>
-        <span>784 -> 128 -> 10</span>
+        <span>784 → 128 → 10</span>
       </div>
       <div class="pane-body">
         <div>
-          <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; margin-bottom: 6px;">
+          <div
+            style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; margin-bottom: 6px;">
             <span style="color: var(--text-secondary);">H1 INT8 ACTIVATIONS (128 NODES)</span>
             <span id="node-telemetry" style="color: var(--accent-cyan);">HOVER FOR REG DUMP</span>
           </div>
@@ -82,7 +70,8 @@
         </div>
 
         <div style="flex: 1; min-height: 180px; display: flex; flex-direction: column;">
-          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">
+          <div
+            style="font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">
             LOGIT COMPLIANCE (FP32 VS INT8 FIXED-POINT)
           </div>
           <div style="flex: 1; position: relative;">
@@ -92,35 +81,41 @@
       </div>
     </section>
 
-    <!-- Pane 3: Fixed-Point Quantization & Classifier -->
-    <section class="pane">
+    <section class="pane" aria-label="Quantization telemetry">
       <div class="pane-header">
         <span>3. Quantization Telemetry</span>
         <span>FIXED-POINT Q31</span>
       </div>
       <div class="pane-body">
-        
+
         <div class="field-row">
-          <div class="field-label">
-            <span>SCALE FACTOR (S)</span>
-            <span id="scale-val">0.00784</span>
-          </div>
-          <input type="range" id="param-scale" min="0.001" max="0.030" step="0.0005" value="0.00784" />
+          <div class="field-label"><span>SCALE FACTOR (S)</span><span id="scale-val">0.00784</span></div>
+          <input type="range" id="param-scale" min="0.001" max="0.030" step="0.0005" value="0.00784"
+            aria-label="Scale factor" />
         </div>
 
         <div class="field-row">
-          <div class="field-label">
-            <span>ZERO-POINT (Z)</span>
-            <span id="zp-val">0</span>
-          </div>
-          <input type="range" id="param-zp" min="-128" max="127" step="1" value="0" />
+          <div class="field-label"><span>ZERO-POINT (Z)</span><span id="zp-val">0</span></div>
+          <input type="range" id="param-zp" min="-128" max="127" step="1" value="0" aria-label="Zero point" />
         </div>
 
         <table class="perf-table">
-          <tr><td>SQNR (SNR)</td><td id="metric-sqnr">44.1 dB</td></tr>
-          <tr><td>RMSE GAP</td><td id="metric-rmse">0.0142</td></tr>
-          <tr><td>MAX L∞ DRIFT</td><td id="metric-linf">0.0520</td></tr>
-          <tr><td>EST. CYCLES</td><td id="metric-cycles">114,280</td></tr>
+          <tr>
+            <td>SQNR (SNR)</td>
+            <td id="metric-sqnr">44.1 dB</td>
+          </tr>
+          <tr>
+            <td>RMSE GAP</td>
+            <td id="metric-rmse">0.0142</td>
+          </tr>
+          <tr>
+            <td>MAX L∞ DRIFT</td>
+            <td id="metric-linf">0.0520</td>
+          </tr>
+          <tr>
+            <td>EST. CYCLES</td>
+            <td id="metric-cycles">114,280</td>
+          </tr>
         </table>
 
         <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
@@ -136,4 +131,5 @@
   <script src="js/network.js"></script>
   <script src="js/quantization.js"></script>
 </body>
+
 </html>
