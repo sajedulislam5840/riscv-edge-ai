@@ -45,8 +45,7 @@ namespace engine
     int8_t quantize_val(float val, const QuantParams &params);
     float dequantize_val(int8_t val, const QuantParams &params);
 
-    // Commit 15: Fixed-point integer multiplier & shift conversion
-    // Converts real_multiplier into multiplier * 2^(-shift)
+    // Fixed-point integer multiplier & shift conversion
     void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift);
     int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift);
 
@@ -135,7 +134,7 @@ namespace engine
                                  const PerChannelQuantParams &B_params,
                                  QuantizedTensor &C);
 
-    // Commit 15: Integer-only fixed point GEMM (FPU-free requantization)
+    // Integer-only fixed point GEMM (FPU-free requantization)
     void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
 
 } // namespace engine
