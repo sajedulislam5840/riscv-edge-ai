@@ -27,6 +27,52 @@ namespace engine
         return {scale, zero_point};
     }
 
+    QuantParams calculate_quant_params_calibrated(
+        const Tensor<float> &input,
+        CalibrationMethod method,
+        float percentile)
+    {
+        if (input.size() == 0)
+        {
+            return {1.0f, 0};
+        }
+
+        if (method == CalibrationMethod::MinMax)
+        {
+            const float *d = input.data();
+            float min_val = d[0];
+            float max_val = d[0];
+            for (size_t i = 1; i < input.size(); ++i)
+            {
+                if (d[i] < min_val)
+                    min_val = d[i];
+                if (d[i] > max_val)
+                    max_val = d[i];
+            }
+            return calculate_quant_params(min_val, max_val);
+        }
+
+        // CalibrationMethod::Percentile
+        if (percentile <= 50.0f || percentile >= 100.0f)
+        {
+            throw std::invalid_argument("Percentile must be between 50.0 and 100.0.");
+        }
+
+        std::vector<float> sorted_vals(input.data(), input.data() + input.size());
+        std::sort(sorted_vals.begin(), sorted_vals.end());
+
+        float lower_pct = (100.0f - percentile) / 100.0f;
+        float upper_pct = percentile / 100.0f;
+
+        size_t low_idx = static_cast<size_t>(std::floor(lower_pct * static_cast<float>(sorted_vals.size() - 1)));
+        size_t high_idx = static_cast<size_t>(std::ceil(upper_pct * static_cast<float>(sorted_vals.size() - 1)));
+
+        float min_clipped = sorted_vals[low_idx];
+        float max_clipped = sorted_vals[high_idx];
+
+        return calculate_quant_params(min_clipped, max_clipped);
+    }
+
     PerChannelQuantParams calculate_per_channel_params(const Tensor<float> &weight, bool per_column)
     {
         if (weight.size() == 0)
