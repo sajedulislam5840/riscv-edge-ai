@@ -99,14 +99,20 @@ namespace engine
         const QuantParams &b_params = B.params();
         const QuantParams &c_params = C.params();
 
-        // Compute scale factors for requantization
+        // Compute combined scale factors for efficient requantization
         float output_scale = (a_params.scale * b_params.scale) / c_params.scale;
+
+        // Pre-compute zero-point contributions for optimization
+        int32_t a_zp = a_params.zero_point;
+        int32_t b_zp = b_params.zero_point;
+        int32_t c_zp = c_params.zero_point;
 
         for (size_t i = 0; i < M; ++i)
         {
             for (size_t j = 0; j < N; ++j)
             {
                 // Use 32-bit accumulator to prevent overflow
+                // INT8 × INT8 = INT16, sum of K terms requires INT32
                 int32_t acc = 0;
 
                 for (size_t k = 0; k < K; ++k)
@@ -114,16 +120,22 @@ namespace engine
                     int8_t a_val = a_data[i * K + k];
                     int8_t b_val = b_data[k * N + j];
 
-                    // Accumulate in INT32
-                    acc += static_cast<int32_t>(a_val) * static_cast<int32_t>(b_val);
+                    // Dequantize, multiply, and accumulate in INT32
+                    int32_t a_dq = static_cast<int32_t>(a_val) - a_zp;
+                    int32_t b_dq = static_cast<int32_t>(b_val) - b_zp;
+
+                    acc += a_dq * b_dq;
                 }
 
-                // Requantize: apply scale and zero-point correction
+                // Requantize: apply combined scale factor
                 float acc_fp = static_cast<float>(acc) * output_scale;
-                acc_fp += static_cast<float>(c_params.zero_point);
+                acc_fp += static_cast<float>(c_zp);
 
-                // Clamp to INT8 range
-                int32_t result = std::clamp(static_cast<int32_t>(std::round(acc_fp)), -128, 127);
+                // Clamp to INT8 range and store result
+                int32_t result = std::clamp(
+                    static_cast<int32_t>(std::round(acc_fp)),
+                    -128,
+                    127);
                 c_data[i * N + j] = static_cast<int8_t>(result);
             }
         }
