@@ -1,4 +1,4 @@
-﻿// Clean mathematical weight initialization
+﻿// Deterministic weight initialization
 const ModelWeights = {
   W1: new Float32Array(784 * 128),
   b1: new Float32Array(128),
@@ -16,64 +16,84 @@ const ModelWeights = {
       ModelWeights.W1[r * 128 + c] = Math.sin(col * 0.25 * freq) * Math.cos(row * 0.25 * freq) * 0.35 * (centerDist < 11 ? 1.6 : 0.1);
     }
   }
-  for (let i = 0; i < 128; i++) {
-    ModelWeights.b1[i] = -0.04 + (i % 7) * 0.015;
-  }
+  for (let i = 0; i < 128; i++) ModelWeights.b1[i] = -0.04 + (i % 7) * 0.015;
   for (let r = 0; r < 128; r++) {
-    for (let c = 0; c < 10; c++) {
-      ModelWeights.W2[r * 10 + c] = Math.sin((r + 1) * (c + 1) * 0.28) * 0.45;
-    }
+    for (let c = 0; c < 10; c++) ModelWeights.W2[r * 10 + c] = Math.sin((r + 1) * (c + 1) * 0.28) * 0.45;
   }
-  for (let i = 0; i < 10; i++) {
-    ModelWeights.b2[i] = 0.0;
-  }
+  for (let i = 0; i < 10; i++) ModelWeights.b2[i] = 0.0;
 })();
 
 class DigitCanvas {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.isDrawing = false;
     this.setupListeners();
     this.clear();
   }
 
+  infer() {
+    if (window.triggerInference) window.triggerInference();
+  }
+
   setupListeners() {
-    const start = (e) => {
+    const c = this.canvas;
+
+    c.addEventListener('pointerdown', (e) => {
       this.isDrawing = true;
+      c.setPointerCapture(e.pointerId);
+      c.classList.add('drawing');
       this.draw(e);
-    };
+    });
+
+    c.addEventListener('pointermove', (e) => this.draw(e));
+
     const stop = () => {
       if (!this.isDrawing) return;
       this.isDrawing = false;
+      c.classList.remove('drawing');
       this.ctx.beginPath();
-      if (window.triggerInference) window.triggerInference();
+      this.infer();
     };
-
-    this.canvas.addEventListener('mousedown', start);
-    this.canvas.addEventListener('mousemove', (e) => this.draw(e));
-    window.addEventListener('mouseup', stop);
-
-    this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e.touches[0]); });
-    this.canvas.addEventListener('touchmove', (e) => { e.preventDefault(); this.draw(e.touches[0]); });
-    window.addEventListener('touchend', stop);
+    c.addEventListener('pointerup', stop);
+    c.addEventListener('pointercancel', stop);
 
     document.getElementById('btn-clear').addEventListener('click', () => {
       this.clear();
-      if (window.triggerInference) window.triggerInference();
+      this.flash();
+      this.infer();
     });
 
     document.getElementById('btn-invert').addEventListener('click', () => {
       this.invert();
-      if (window.triggerInference) window.triggerInference();
+      this.flash();
+      this.infer();
     });
+
+    document.querySelectorAll('.action-btn').forEach((btn) => {
+      btn.addEventListener('pointerdown', (e) => {
+        const r = btn.getBoundingClientRect();
+        const size = Math.max(r.width, r.height);
+        const dot = document.createElement('span');
+        dot.className = 'ripple';
+        dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+        btn.appendChild(dot);
+        dot.addEventListener('animationend', () => dot.remove());
+      });
+    });
+  }
+
+  flash() {
+    this.canvas.classList.remove('flash');
+    void this.canvas.offsetWidth;
+    this.canvas.classList.add('flash');
   }
 
   draw(e) {
     if (!this.isDrawing) return;
     const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left) * (this.canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
 
     this.ctx.lineWidth = 14;
     this.ctx.lineCap = 'round';
@@ -84,6 +104,7 @@ class DigitCanvas {
     this.ctx.stroke();
     this.ctx.beginPath();
     this.ctx.moveTo(x, y);
+    this.infer();
   }
 
   clear() {
@@ -104,17 +125,17 @@ class DigitCanvas {
   }
 
   getDownsampledPixels() {
-    const off = document.createElement('canvas');
-    off.width = 28;
-    off.height = 28;
-    const offCtx = off.getContext('2d');
-    offCtx.drawImage(this.canvas, 0, 0, 28, 28);
-    const img = offCtx.getImageData(0, 0, 28, 28).data;
+    if (!this._off) {
+      this._off = document.createElement('canvas');
+      this._off.width = 28;
+      this._off.height = 28;
+      this._offCtx = this._off.getContext('2d', { willReadFrequently: true });
+    }
+    this._offCtx.drawImage(this.canvas, 0, 0, 28, 28);
+    const img = this._offCtx.getImageData(0, 0, 28, 28).data;
 
     const tensor = new Float32Array(784);
-    for (let i = 0; i < 784; i++) {
-      tensor[i] = (img[i * 4] / 127.5) - 1.0;
-    }
+    for (let i = 0; i < 784; i++) tensor[i] = (img[i * 4] / 127.5) - 1.0;
     return tensor;
   }
 }
