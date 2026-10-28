@@ -7,16 +7,33 @@ const ModelWeights = {
 };
 
 (function initializeWeights() {
-  for (let r = 0; r < 784; r++) {
-    const row = Math.floor(r / 28);
-    const col = r % 28;
-    const centerDist = Math.hypot(row - 14, col - 14);
-    for (let c = 0; c < 128; c++) {
-      const freq = (c % 8) + 1;
-      ModelWeights.W1[r * 128 + c] = Math.sin(col * 0.25 * freq) * Math.cos(row * 0.25 * freq) * 0.35 * (centerDist < 11 ? 1.6 : 0.1);
+  // Seeded RNG so weights are deterministic
+  let seed = 1234567;
+  const rnd = () => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  // Each hidden node is a unique oriented Gabor patch. Centers tile the 28x28 image
+  // in the same 16x8 layout as the activation grid, so the grid reads as a spatial map.
+  for (let c = 0; c < 128; c++) {
+    const cx = ((c % 16) + 0.5) * (28 / 16) + (rnd() - 0.5) * 3;
+    const cy = (Math.floor(c / 16) + 0.5) * (28 / 8) + (rnd() - 0.5) * 3;
+    const sigma = 3 + rnd() * 3;
+    const theta = rnd() * Math.PI;
+    const k = 0.5 + rnd() * 0.9;
+    const phase = rnd() * Math.PI * 2;
+    const ct = Math.cos(theta), st = Math.sin(theta);
+    for (let r = 0; r < 784; r++) {
+      const x = (r % 28) - cx;
+      const y = Math.floor(r / 28) - cy;
+      const env = Math.exp(-(x * x + y * y) / (2 * sigma * sigma));
+      ModelWeights.W1[r * 128 + c] = 0.35 * env * Math.cos(k * (x * ct + y * st) + phase);
     }
+    ModelWeights.b1[c] = -0.15 + (rnd() - 0.5) * 0.1;
   }
-  for (let i = 0; i < 128; i++) ModelWeights.b1[i] = -0.04 + (i % 7) * 0.015;
   for (let r = 0; r < 128; r++) {
     for (let c = 0; c < 10; c++) ModelWeights.W2[r * 10 + c] = Math.sin((r + 1) * (c + 1) * 0.28) * 0.45;
   }
@@ -135,7 +152,7 @@ class DigitCanvas {
     const img = this._offCtx.getImageData(0, 0, 28, 28).data;
 
     const tensor = new Float32Array(784);
-    for (let i = 0; i < 784; i++) tensor[i] = (img[i * 4] / 127.5) - 1.0;
+    for (let i = 0; i < 784; i++) tensor[i] = img[i * 4] / 255; // 0..1, background = 0
     return tensor;
   }
 }
