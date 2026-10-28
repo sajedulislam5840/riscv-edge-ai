@@ -52,6 +52,3 @@ To reproduce these findings:
 ```bash
 g++ -std=c++17 -O3 -Iinclude benchmarks/mnist/run_benchmark.cpp src/quantize.cpp src/ops.cpp -o run_benchmark
 ./run_benchmark
-| Out-File -FilePath "docs\BENCHMARK_RESULTS.md" -Encoding utf8
----
-
