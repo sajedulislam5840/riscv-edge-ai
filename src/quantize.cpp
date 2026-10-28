@@ -52,7 +52,6 @@ namespace engine
             return calculate_quant_params(min_val, max_val);
         }
 
-        // CalibrationMethod::Percentile
         if (percentile <= 50.0f || percentile >= 100.0f)
         {
             throw std::invalid_argument("Percentile must be between 50.0 and 100.0.");
@@ -141,6 +140,39 @@ namespace engine
     float dequantize_val(int8_t val, const QuantParams &params)
     {
         return (static_cast<float>(val) - static_cast<float>(params.zero_point)) * params.scale;
+    }
+
+    // Commit 15: Decompose double multiplier into Q31 integer multiplier and right shift
+    void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift)
+    {
+        if (double_multiplier <= 0.0)
+        {
+            quantized_multiplier = 0;
+            shift = 0;
+            return;
+        }
+
+        int exponent;
+        double significand = std::frexp(double_multiplier, &exponent);
+        int64_t q = static_cast<int64_t>(std::round(significand * (1LL << 31)));
+
+        if (q == (1LL << 31))
+        {
+            q /= 2;
+            exponent++;
+        }
+
+        quantized_multiplier = static_cast<int32_t>(q);
+        shift = -exponent;
+    }
+
+    // Fixed-point multiplication with symmetric integer rounding
+    int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift)
+    {
+        int64_t total = static_cast<int64_t>(x) * static_cast<int64_t>(quantized_multiplier);
+        int64_t rounding = 1LL << (shift - 1);
+        int64_t result = (total + rounding) >> shift;
+        return static_cast<int32_t>(result);
     }
 
     QuantizedTensor quantize_tensor(const Tensor<float> &input, const QuantParams &params)
@@ -262,6 +294,55 @@ namespace engine
 
                 float scaled_acc = static_cast<float>(acc) * effective_scale;
                 int32_t res = static_cast<int32_t>(std::round(scaled_acc)) + zp_C;
+                C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
+            }
+        }
+    }
+
+    // Commit 15: Integer-only Fixed-Point GEMM (Zero FPU instructions)
+    void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
+    {
+        if (A.size() == 0 || B.size() == 0)
+        {
+            throw std::invalid_argument("Cannot perform matmul on empty tensor.");
+        }
+        if (A.cols() != B.rows())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_fixed_point: A.cols must match B.rows.");
+        }
+        if (C.rows() != A.rows() || C.cols() != B.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_fixed_point: Output tensor C dimension invalid.");
+        }
+
+        const size_t M = A.rows();
+        const size_t K = A.cols();
+        const size_t N = B.cols();
+
+        const int32_t zp_A = A.params().zero_point;
+        const int32_t zp_B = B.params().zero_point;
+        const int32_t zp_C = C.params().zero_point;
+
+        double real_multiplier = static_cast<double>(A.params().scale * B.params().scale) / static_cast<double>(C.params().scale);
+        int32_t q_multiplier;
+        int shift;
+        quantize_multiplier_and_shift(real_multiplier, q_multiplier, shift);
+
+        for (size_t i = 0; i < M; ++i)
+        {
+            for (size_t j = 0; j < N; ++j)
+            {
+                int32_t acc = 0;
+                for (size_t k = 0; k < K; ++k)
+                {
+                    int32_t val_A = static_cast<int32_t>(A(i, k)) - zp_A;
+                    int32_t val_B = static_cast<int32_t>(B(k, j)) - zp_B;
+                    acc += val_A * val_B;
+                }
+
+                // Fixed point requantization without float operations
+                int32_t scaled_acc = multiply_by_quantized_multiplier(acc, q_multiplier, shift);
+                int32_t res = scaled_acc + zp_C;
                 C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
             }
         }

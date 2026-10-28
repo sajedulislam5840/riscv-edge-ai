@@ -35,7 +35,6 @@ namespace engine
 
     QuantParams calculate_quant_params(float min_val, float max_val);
 
-    // Commit 14: Dynamic Range Calibration Modes
     QuantParams calculate_quant_params_calibrated(
         const Tensor<float> &input,
         CalibrationMethod method = CalibrationMethod::MinMax,
@@ -45,6 +44,11 @@ namespace engine
 
     int8_t quantize_val(float val, const QuantParams &params);
     float dequantize_val(int8_t val, const QuantParams &params);
+
+    // Commit 15: Fixed-point integer multiplier & shift conversion
+    // Converts real_multiplier into multiplier * 2^(-shift)
+    void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift);
+    int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift);
 
     class QuantizedTensor
     {
@@ -130,6 +134,9 @@ namespace engine
                                  const QuantizedTensor &B,
                                  const PerChannelQuantParams &B_params,
                                  QuantizedTensor &C);
+
+    // Commit 15: Integer-only fixed point GEMM (FPU-free requantization)
+    void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
 
 } // namespace engine
 
