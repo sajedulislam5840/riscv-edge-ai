@@ -71,4 +71,62 @@ namespace engine
         return output;
     }
 
+    // Quantized matrix multiplication with 32-bit accumulator
+    void matmul_int8(
+        const QuantizedTensor &A,
+        const QuantizedTensor &B,
+        QuantizedTensor &C)
+    {
+        if (A.cols() != B.rows())
+        {
+            throw std::invalid_argument("Matrix dimension mismatch for INT8 GEMM");
+        }
+
+        size_t M = A.rows();
+        size_t K = A.cols();
+        size_t N = B.cols();
+
+        if (C.rows() != M || C.cols() != N)
+        {
+            throw std::invalid_argument("Output matrix C has incorrect dimensions");
+        }
+
+        const int8_t *a_data = A.data();
+        const int8_t *b_data = B.data();
+        int8_t *c_data = C.data();
+
+        const QuantParams &a_params = A.params();
+        const QuantParams &b_params = B.params();
+        const QuantParams &c_params = C.params();
+
+        // Compute scale factors for requantization
+        float output_scale = (a_params.scale * b_params.scale) / c_params.scale;
+
+        for (size_t i = 0; i < M; ++i)
+        {
+            for (size_t j = 0; j < N; ++j)
+            {
+                // Use 32-bit accumulator to prevent overflow
+                int32_t acc = 0;
+
+                for (size_t k = 0; k < K; ++k)
+                {
+                    int8_t a_val = a_data[i * K + k];
+                    int8_t b_val = b_data[k * N + j];
+
+                    // Accumulate in INT32
+                    acc += static_cast<int32_t>(a_val) * static_cast<int32_t>(b_val);
+                }
+
+                // Requantize: apply scale and zero-point correction
+                float acc_fp = static_cast<float>(acc) * output_scale;
+                acc_fp += static_cast<float>(c_params.zero_point);
+
+                // Clamp to INT8 range
+                int32_t result = std::clamp(static_cast<int32_t>(std::round(acc_fp)), -128, 127);
+                c_data[i * N + j] = static_cast<int8_t>(result);
+            }
+        }
+    }
+
 } // namespace engine
