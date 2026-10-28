@@ -526,4 +526,103 @@ namespace engine
         }
     }
 
+    // Commit 17: BatchNorm Folding Implementation
+    void fold_batch_norm(
+        Tensor<float> &weight,
+        Tensor<float> &bias,
+        const Tensor<float> &mean,
+        const Tensor<float> &var,
+        const Tensor<float> &gamma,
+        const Tensor<float> &beta,
+        float epsilon)
+    {
+        size_t out_channels = weight.cols();
+        if (mean.size() != out_channels || var.size() != out_channels ||
+            gamma.size() != out_channels || beta.size() != out_channels ||
+            bias.size() != out_channels)
+        {
+            throw std::invalid_argument("Dimension mismatch in fold_batch_norm parameter vectors.");
+        }
+
+        const float *mu = mean.data();
+        const float *v = var.data();
+        const float *g = gamma.data();
+        const float *b = beta.data();
+        float *b_out = bias.data();
+
+        for (size_t c = 0; c < out_channels; ++c)
+        {
+            float inv_std = 1.0f / std::sqrt(v[c] + epsilon);
+            float scale_factor = g[c] * inv_std;
+
+            // Fold into weight matrix columns
+            for (size_t r = 0; r < weight.rows(); ++r)
+            {
+                weight(r, c) *= scale_factor;
+            }
+
+            // Fold into bias vector
+            b_out[c] = (b_out[c] - mu[c]) * scale_factor + b[c];
+        }
+    }
+
+    // Commit 18: Quantized LeakyReLU Implementation (Integer-only fixed point)
+    void leaky_relu(QuantizedTensor &X, float alpha)
+    {
+        if (X.size() == 0)
+            return;
+        int8_t *ptr = X.data();
+        const size_t total = X.size();
+        const int32_t zp = X.params().zero_point;
+
+        int32_t q_multiplier;
+        int shift;
+        quantize_multiplier_and_shift(static_cast<double>(alpha), q_multiplier, shift);
+
+        for (size_t i = 0; i < total; ++i)
+        {
+            int32_t val = static_cast<int32_t>(ptr[i]);
+            if (val < zp)
+            {
+                int32_t diff = val - zp;
+                int32_t scaled = multiply_by_quantized_multiplier(diff, q_multiplier, shift);
+                int32_t clamped = std::clamp(zp + scaled, -128, 127);
+                ptr[i] = static_cast<int8_t>(clamped);
+            }
+        }
+    }
+
+    void leaky_relu(const QuantizedTensor &input, QuantizedTensor &output, float alpha)
+    {
+        if (input.rows() != output.rows() || input.cols() != output.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in out-of-place leaky_relu.");
+        }
+        output.set_params(input.params());
+        const int8_t *in_ptr = input.data();
+        int8_t *out_ptr = output.data();
+        const size_t total = input.size();
+        const int32_t zp = input.params().zero_point;
+
+        int32_t q_multiplier;
+        int shift;
+        quantize_multiplier_and_shift(static_cast<double>(alpha), q_multiplier, shift);
+
+        for (size_t i = 0; i < total; ++i)
+        {
+            int32_t val = static_cast<int32_t>(in_ptr[i]);
+            if (val < zp)
+            {
+                int32_t diff = val - zp;
+                int32_t scaled = multiply_by_quantized_multiplier(diff, q_multiplier, shift);
+                int32_t clamped = std::clamp(zp + scaled, -128, 127);
+                out_ptr[i] = static_cast<int8_t>(clamped);
+            }
+            else
+            {
+                out_ptr[i] = in_ptr[i];
+            }
+        }
+    }
+
 } // namespace engine
