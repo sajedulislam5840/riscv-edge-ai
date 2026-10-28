@@ -3,79 +3,139 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bare-Metal RISC-V Neural Engine - Interactive Quantization Demo</title>
+  <title>RISC-V Bare-Metal Neural Engine - Quantization Visualizer</title>
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-  <header>
-    <h1>Bare-Metal RISC-V Neural Engine</h1>
-    <p>Hardware-Software Co-Design • Fixed-Point INT8 Quantization Explorer</p>
-  </header>
+  <!-- Top Telemetry Status Strip -->
+  <nav class="top-nav">
+    <div class="brand">
+      <div class="logo-icon">RV</div>
+      <div class="brand-text">
+        <h1>Bare-Metal Neural Engine</h1>
+        <span>TARGET: RV32I / RV64I NO-FPU • AFFINE INT8 Q31</span>
+      </div>
+    </div>
 
-  <main class="dashboard-grid">
-    <!-- Panel 1: Canvas Drawing Input -->
-    <section class="panel">
-      <h2>1. Draw Digit (28x28)</h2>
-      <div class="canvas-container">
-        <canvas id="digit-canvas" width="224" height="224"></canvas>
-        <div class="canvas-controls">
-          <button id="btn-clear">Clear</button>
-          <button id="btn-invert">Invert</button>
+    <div class="telemetry-strip">
+      <div class="telemetry-item">
+        <span class="telemetry-label">Memory Arena</span>
+        <span class="telemetry-value">64 KB (STATIC)</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Active Footprint</span>
+        <span class="telemetry-value">922 BYTES</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="telemetry-label">Simulated Cycles</span>
+        <span class="telemetry-value" id="cycle-counter">102,400</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="app-container">
+    <!-- Panel 1: Matrix Input & Bounding Normalizer -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-title">1. Input Acquisition</span>
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-fp32);">X ∈ ℝ¹ˣ⁷⁸⁴</span>
+      </div>
+
+      <div class="canvas-wrapper">
+        <div class="canvas-frame">
+          <canvas id="digit-canvas" width="224" height="224"></canvas>
         </div>
-        <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
-          Draw a single digit (0-9) inside the box. Pixel stream maps to 784-element float tensor.
-        </p>
+
+        <div class="canvas-actions">
+          <button id="btn-clear" class="btn btn-danger">Reset Pad</button>
+          <button id="btn-invert" class="btn">Invert Stroke</button>
+        </div>
+      </div>
+
+      <div class="matrix-preview-section">
+        <canvas id="preview-canvas" width="28" height="28"></canvas>
+        <div class="matrix-specs">
+          <div>Downsampled: 28×28 INT8</div>
+          <div>Center of Mass: Normal</div>
+          <div>Stride: 28 bytes</div>
+        </div>
+      </div>
+
+      <div class="distortion-strip">
+        <div class="metric-pill">
+          <span class="lbl">SQNR</span>
+          <span class="val" id="metric-sqnr" style="color: var(--color-int8);">42.8 dB</span>
+        </div>
+        <div class="metric-pill">
+          <span class="lbl">RMSE</span>
+          <span class="val" id="metric-rmse" style="color: var(--color-fp32);">0.018</span>
+        </div>
+        <div class="metric-pill">
+          <span class="lbl">Max L∞</span>
+          <span class="val" id="metric-linf" style="color: var(--color-warn);">0.064</span>
+        </div>
       </div>
     </section>
 
-    <!-- Panel 2: Layer & Quantization Visualization -->
-    <section class="panel">
-      <h2>2. Layer Execution & Profiling</h2>
-      <div class="vis-container">
+    <!-- Panel 2: Intermediate Activations & Logit Comparison -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-title">2. Datapath Execution & Verification</span>
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-tertiary);">FC1 -> ReLU -> FC2</span>
+      </div>
+
+      <div class="vis-section">
         <div>
-          <label style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">
-            Hidden Layer Activations (128 Nodes - Dense -> ReLU):
-          </label>
-          <div id="hidden-activations" class="activation-grid"></div>
+          <div class="node-grid-header">
+            <span>LAYER 1 ACTIVATIONS: H ∈ ℤ¹ˣ¹²⁸</span>
+            <span id="act-hover-val">HOVER OVER NODE</span>
+          </div>
+          <div id="hidden-activations" class="activation-grid" style="margin-top: 0.4rem;"></div>
         </div>
 
         <div>
-          <label style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">
-            Logit Distribution Comparison (FP32 Baseline vs INT8 Q31):
-          </label>
-          <canvas id="logit-chart" height="150"></canvas>
+          <div class="node-grid-header" style="margin-bottom: 0.4rem;">
+            <span>LOGIT PARITY: FP32 VS INT8 FIXED-POINT</span>
+            <span>ERROR GAP (Δ)</span>
+          </div>
+          <div style="height: 180px; position: relative;">
+            <canvas id="logit-chart"></canvas>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Panel 3: Quantization Controls & Probabilities -->
-    <section class="panel">
-      <h2>3. Quantization Parameters</h2>
-      
-      <div class="control-group">
-        <label>
-          <span>Weight Scale (S):</span>
-          <span id="scale-val">0.0078</span>
-        </label>
-        <input type="range" id="param-scale" min="0.001" max="0.050" step="0.001" value="0.0078" />
+    <!-- Panel 3: Quantization Dial & Softmax Output -->
+    <section class="card">
+      <div class="card-header">
+        <span class="card-title">3. Quantization Inspector</span>
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-int8);">Q31 FIXED POINT</span>
       </div>
 
-      <div class="control-group">
-        <label>
-          <span>Zero Point (Z):</span>
+      <div class="control-block">
+        <div class="control-label">
+          <span>Activation Scale (S_X)</span>
+          <span id="scale-val">0.00784</span>
+        </div>
+        <input type="range" id="param-scale" min="0.001" max="0.030" step="0.0005" value="0.00784" />
+      </div>
+
+      <div class="control-block">
+        <div class="control-label">
+          <span>Zero-Point Offset (Z_X)</span>
           <span id="zp-val">0</span>
-        </label>
+        </div>
         <input type="range" id="param-zp" min="-128" max="127" step="1" value="0" />
       </div>
 
-      <h2 style="margin-top: 1.5rem;">Predictions</h2>
-      <div id="prob-container" class="prob-list"></div>
-
-      <div style="text-align: center;">
-        <span class="status-badge">FP32-INT8 Match: 98.2%</span>
+      <div class="card-header" style="margin-top: 0.5rem;">
+        <span class="card-title">Softmax Classifier</span>
+        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary);">TOP-1 OUTPUT</span>
       </div>
+
+      <div id="prob-container" class="prob-list"></div>
     </section>
   </main>
 

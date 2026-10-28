@@ -1,17 +1,25 @@
 ﻿document.addEventListener("DOMContentLoaded", () => {
-  const canvas = new window.DigitCanvas("digit-canvas");
+  const canvas = new window.DigitCanvas("digit-canvas", "preview-canvas");
 
-  // Build 128-node visual grid
+  // Build 128-node grid with hover tooltips
   const actContainer = document.getElementById("hidden-activations");
+  const hoverDisplay = document.getElementById("act-hover-val");
   actContainer.innerHTML = "";
+
   for (let i = 0; i < 128; i++) {
     const cell = document.createElement("div");
     cell.className = "act-cell";
     cell.id = `act-${i}`;
+    cell.dataset.index = i;
+    cell.addEventListener("mouseenter", () => {
+      const val = cell.dataset.realVal || "0.00";
+      const qVal = cell.dataset.qVal || "0";
+      hoverDisplay.textContent = `NODE [${i.toString().padStart(3, '0')}]: FP32=${val} | INT8=${qVal} (0x${(parseInt(qVal, 10) & 0xFF).toString(16).padStart(2, '0')})`;
+    });
     actContainer.appendChild(cell);
   }
 
-  // Setup Chart.js for FP32 vs INT8 Logits
+  // Setup Chart.js
   const chartCtx = document.getElementById("logit-chart").getContext("2d");
   const logitChart = new Chart(chartCtx, {
     type: "bar",
@@ -19,41 +27,46 @@
       labels: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
       datasets: [
         {
-          label: "FP32 Baseline",
+          label: "FP32 Software Baseline",
           data: new Array(10).fill(0),
-          backgroundColor: "rgba(56, 189, 248, 0.7)",
+          backgroundColor: "rgba(56, 189, 248, 0.4)",
           borderColor: "#38bdf8",
-          borderWidth: 1
+          borderWidth: 1.5,
+          borderRadius: 3
         },
         {
-          label: "INT8 Fixed-Point",
+          label: "INT8 Fixed-Point Engine",
           data: new Array(10).fill(0),
-          backgroundColor: "rgba(129, 140, 248, 0.7)",
-          borderColor: "#818cf8",
-          borderWidth: 1
+          backgroundColor: "rgba(16, 185, 129, 0.6)",
+          borderColor: "#10b981",
+          borderWidth: 1.5,
+          borderRadius: 3
         }
       ]
     },
     options: {
       responsive: true,
-      animation: { duration: 150 },
+      maintainAspectRatio: false,
+      animation: { duration: 100 },
       scales: {
         y: {
-          grid: { color: "#334155" },
-          ticks: { color: "#94a3b8" }
+          grid: { color: "rgba(255, 255, 255, 0.05)" },
+          ticks: { color: "#64748b", font: { family: "monospace" } }
         },
         x: {
-          ticks: { color: "#f8fafc" },
-          grid: { display: false }
+          grid: { display: false },
+          ticks: { color: "#94a3b8", font: { family: "monospace", weight: "bold" } }
         }
       },
       plugins: {
-        legend: { labels: { color: "#f8fafc" } }
+        legend: {
+          position: "top",
+          labels: { color: "#94a3b8", boxWidth: 12, font: { size: 10 } }
+        }
       }
     }
   });
 
-  // Quantization Sliders
   const scaleSlider = document.getElementById("param-scale");
   const zpSlider = document.getElementById("param-zp");
   const scaleValDisplay = document.getElementById("scale-val");
@@ -64,7 +77,7 @@
 
   scaleSlider.addEventListener("input", (e) => {
     currentScale = parseFloat(e.target.value);
-    scaleValDisplay.textContent = currentScale.toFixed(4);
+    scaleValDisplay.textContent = currentScale.toFixed(5);
     runInference();
   });
 
@@ -95,26 +108,22 @@
     const input = canvas.getDownsampledPixels();
     const W = window.ModelWeights;
 
-    // --- Path A: FP32 Reference ---
+    // --- FP32 Execution ---
     const h1_fp32 = new Float32Array(128);
     for (let c = 0; c < 128; c++) {
       let sum = W.b1[c];
-      for (let r = 0; r < 784; r++) {
-        sum += input[r] * W.W1[r * 128 + c];
-      }
-      h1_fp32[c] = Math.max(0, sum); // ReLU
+      for (let r = 0; r < 784; r++) sum += input[r] * W.W1[r * 128 + c];
+      h1_fp32[c] = Math.max(0, sum);
     }
 
     const out_fp32 = new Float32Array(10);
     for (let c = 0; c < 10; c++) {
       let sum = W.b2[c];
-      for (let r = 0; r < 128; r++) {
-        sum += h1_fp32[r] * W.W2[r * 10 + c];
-      }
+      for (let r = 0; r < 128; r++) sum += h1_fp32[r] * W.W2[r * 10 + c];
       out_fp32[c] = sum;
     }
 
-    // --- Path B: INT8 Fixed-Point Engine ---
+    // --- INT8 Fixed-Point Execution ---
     const h1_int8 = new Float32Array(128);
     for (let c = 0; c < 128; c++) {
       let acc = 0;
@@ -123,30 +132,50 @@
         const qW = quantizeVal(W.W1[r * 128 + c], currentScale, 0);
         acc += (qX - currentZP) * qW;
       }
-      // Fixed-point scaling simulated requantization
       const real_val = acc * (currentScale * currentScale) + W.b1[c];
       const relu_val = Math.max(0, real_val);
       const q_out = quantizeVal(relu_val, currentScale, currentZP);
       h1_int8[c] = dequantizeVal(q_out, currentScale, currentZP);
+
+      const cell = document.getElementById(`act-${c}`);
+      cell.dataset.realVal = relu_val.toFixed(3);
+      cell.dataset.qVal = q_out;
     }
 
     const out_int8 = new Float32Array(10);
     for (let c = 0; c < 10; c++) {
       let sum = W.b2[c];
-      for (let r = 0; r < 128; r++) {
-        sum += h1_int8[r] * W.W2[r * 10 + c];
-      }
-      const q_logit = quantizeVal(sum, currentScale * 2.0, currentZP);
-      out_int8[c] = dequantizeVal(q_logit, currentScale * 2.0, currentZP);
+      for (let r = 0; r < 128; r++) sum += h1_int8[r] * W.W2[r * 10 + c];
+      const q_logit = quantizeVal(sum, currentScale * 2.5, currentZP);
+      out_int8[c] = dequantizeVal(q_logit, currentScale * 2.5, currentZP);
     }
 
-    // Update Hidden Activation Heatmap
-    let maxAct = 0.0001;
+    // Distortion Metrics Calculation
+    let signalPower = 0.0;
+    let noisePower = 0.0;
+    let maxAbsErr = 0.0;
+
+    for (let i = 0; i < 10; i++) {
+      const err = Math.abs(out_fp32[i] - out_int8[i]);
+      if (err > maxAbsErr) maxAbsErr = err;
+      signalPower += out_fp32[i] * out_fp32[i];
+      noisePower += err * err;
+    }
+
+    const sqnr = noisePower < 1e-9 ? 60.0 : Math.min(60.0, 10 * Math.log10(signalPower / noisePower));
+    const rmse = Math.sqrt(noisePower / 10.0);
+
+    document.getElementById("metric-sqnr").textContent = `${sqnr.toFixed(1)} dB`;
+    document.getElementById("metric-rmse").textContent = rmse.toFixed(4);
+    document.getElementById("metric-linf").textContent = maxAbsErr.toFixed(4);
+
+    // Update Activation Grid Colors
+    let maxAct = 0.001;
     for (let i = 0; i < 128; i++) if (h1_int8[i] > maxAct) maxAct = h1_int8[i];
     for (let i = 0; i < 128; i++) {
       const cell = document.getElementById(`act-${i}`);
       const norm = Math.min(1.0, h1_int8[i] / maxAct);
-      cell.style.backgroundColor = `rgb(${Math.floor(norm * 56)}, ${Math.floor(norm * 189)}, ${Math.floor(norm * 248)})`;
+      cell.style.backgroundColor = `rgb(${Math.floor(norm * 16)}, ${Math.floor(norm * 185)}, ${Math.floor(norm * 129)})`;
     }
 
     // Update Chart
@@ -154,14 +183,14 @@
     logitChart.data.datasets[1].data = Array.from(out_int8);
     logitChart.update();
 
-    // Update Prediction List
+    // Update Softmax Output
     const probs = softmax(Array.from(out_int8));
-    let bestDigit = 0;
-    let bestProb = -1;
+    let topDigit = 0;
+    let topProb = -1;
     probs.forEach((p, idx) => {
-      if (p > bestProb) {
-        bestProb = p;
-        bestDigit = idx;
+      if (p > topProb) {
+        topProb = p;
+        topDigit = idx;
       }
     });
 
@@ -169,13 +198,13 @@
     probContainer.innerHTML = "";
     probs.forEach((p, idx) => {
       const row = document.createElement("div");
-      row.className = `prob-row ${idx === bestDigit ? "top-prediction" : ""}`;
+      row.className = `prob-row ${idx === topDigit ? "predicted" : ""}`;
       row.innerHTML = `
-        <span style="width: 18px; font-weight: bold;">${idx}</span>
-        <div class="prob-bar-container">
-          <div class="prob-bar" style="width: ${(p * 100).toFixed(1)}%;"></div>
+        <span class="prob-digit">${idx}</span>
+        <div class="prob-track">
+          <div class="prob-fill" style="width: ${(p * 100).toFixed(1)}%;"></div>
         </div>
-        <span style="width: 48px; text-align: right; color: var(--text-muted);">${(p * 100).toFixed(1)}%</span>
+        <span class="prob-val">${(p * 100).toFixed(1)}%</span>
       `;
       probContainer.appendChild(row);
     });
