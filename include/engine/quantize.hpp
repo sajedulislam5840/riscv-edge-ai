@@ -24,7 +24,6 @@ namespace engine
         int32_t zero_point;
     };
 
-    // Per-channel quantization parameters (per output column/filter)
     struct PerChannelQuantParams
     {
         std::vector<float> scales;
@@ -45,7 +44,6 @@ namespace engine
     int8_t quantize_val(float val, const QuantParams &params);
     float dequantize_val(int8_t val, const QuantParams &params);
 
-    // Fixed-point integer multiplier & shift conversion
     void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift);
     int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift);
 
@@ -114,7 +112,6 @@ namespace engine
         std::vector<int8_t> data_;
     };
 
-    // Commit 16: Zero-Copy Quantized Sub-Tensor View
     class QuantizedTensorView
     {
     public:
@@ -168,7 +165,6 @@ namespace engine
         QuantParams params_;
     };
 
-    // Slice constructor helper
     QuantizedTensorView slice_tensor(
         QuantizedTensor &tensor,
         size_t start_row,
@@ -180,7 +176,6 @@ namespace engine
     QuantizedTensor quantize_tensor(const Tensor<float> &input, const QuantParams &params);
     Tensor<float> dequantize_tensor(const QuantizedTensor &input);
 
-    // Per-channel tensor quantization & dequantization
     QuantizedTensor quantize_tensor_per_channel(const Tensor<float> &input, const PerChannelQuantParams &params);
     Tensor<float> dequantize_tensor_per_channel(const QuantizedTensor &input, const PerChannelQuantParams &params);
 
@@ -190,17 +185,27 @@ namespace engine
     void relu(QuantizedTensor &X);
     void relu(const QuantizedTensor &input, QuantizedTensor &output);
 
-    // Per-channel GEMM
     void matmul_int8_per_channel(const QuantizedTensor &A,
                                  const QuantizedTensor &B,
                                  const PerChannelQuantParams &B_params,
                                  QuantizedTensor &C);
 
-    // Integer-only fixed point GEMM (FPU-free requantization)
     void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
-
-    // View-based GEMM kernel
     void matmul_int8_view(const QuantizedTensorView &A, const QuantizedTensorView &B, QuantizedTensorView &C);
+
+    // Commit 17: Offline BatchNorm Folding
+    void fold_batch_norm(
+        Tensor<float> &weight,
+        Tensor<float> &bias,
+        const Tensor<float> &mean,
+        const Tensor<float> &var,
+        const Tensor<float> &gamma,
+        const Tensor<float> &beta,
+        float epsilon = 1e-5f);
+
+    // Commit 18: Quantized LeakyReLU (Integer-only fixed point)
+    void leaky_relu(QuantizedTensor &X, float alpha = 0.1f);
+    void leaky_relu(const QuantizedTensor &input, QuantizedTensor &output, float alpha = 0.1f);
 
 } // namespace engine
 
