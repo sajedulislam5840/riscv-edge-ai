@@ -109,16 +109,20 @@
     return exps.map((v) => v / sum);
   }
 
-  // Quantized W1 only depends on scale (zero-point 0), so cache it.
-  let qW1 = null;
-  let qW1Scale = NaN;
-  function getQuantizedW1(scale) {
-    if (qW1Scale !== scale) {
-      qW1 = new Int8Array(W.W1.length);
-      for (let i = 0; i < W.W1.length; i++) qW1[i] = quantizeVal(W.W1[i], scale, 0);
-      qW1Scale = scale;
-    }
-    return qW1;
+  // Static weight scales (max|W|/127), multiplied by the slider ratio
+  const REF_SCALE = 0.00784;
+  const maxAbs = (arr) => { let m = 0; for (let i = 0; i < arr.length; i++) m = Math.max(m, Math.abs(arr[i])); return m; };
+  const BASE_SW1 = maxAbs(W.W1) / 127;
+  const BASE_SW2 = maxAbs(W.W2) / 127;
+
+  const wCache = {};
+  function getQuantizedW(key, src, scale) {
+    const hit = wCache[key];
+    if (hit && hit.scale === scale) return hit.q;
+    const q = new Int8Array(src.length);
+    for (let i = 0; i < src.length; i++) q[i] = quantizeVal(src[i], scale, 0);
+    wCache[key] = { scale, q };
+    return q;
   }
 
   // ---- Animated numeric readouts ----
@@ -147,11 +151,11 @@
     let html = "";
     const bytes = [];
     for (let line = 0; line < 4; line++) {
-      const addr = (0x80001000 + line * 8).toString(16).toUpperCase();
+      const addr = (0x80001000 + (10 + line) * 28 + 10).toString(16).toUpperCase(); // rows 10-13, cols 10-17
       let bytesStr = "";
       for (let b = 0; b < 8; b++) {
         const idx = line * 8 + b;
-        const val = quantizeVal(pixels[idx], currentScale, currentZP);
+        const val = quantizeVal(pixels[(10 + line) * 28 + 10 + b], currentScale, currentZP);
         const hex = (val & 0xFF).toString(16).toUpperCase().padStart(2, "0");
         bytes[idx] = hex;
         const changed = prevBytes.length && prevBytes[idx] !== hex;
@@ -183,19 +187,31 @@
       out_fp32[c] = sum;
     }
 
-    // INT8 path: quantize inputs and weights once, outside the MAC loop
-    const qW = getQuantizedW1(currentScale);
+    // INT8 path: static weight scales, per-inference activation/logit scales, all tracking the slider
+    const ratio = currentScale / REF_SCALE;
+    const sW1 = BASE_SW1 * ratio;
+    const sW2 = BASE_SW2 * ratio;
+    const qW = getQuantizedW("W1", W.W1, sW1);
     const xs = new Int32Array(784);
     for (let r = 0; r < 784; r++) xs[r] = quantizeVal(input[r], currentScale, currentZP) - currentZP;
 
+    let maxH = 1e-6;
+    for (let c = 0; c < 128; c++) if (h1_fp32[c] > maxH) maxH = h1_fp32[c];
+    let maxO = 1e-6;
+    for (let c = 0; c < 10; c++) maxO = Math.max(maxO, Math.abs(out_fp32[c]));
+    const sA = (maxH / 127) * ratio;
+    const sO = (maxO / 127) * ratio;
+
     const h1_int8 = new Float32Array(128);
-    const outScale = currentScale * currentScale;
+    const qA = new Int32Array(128);
+    const rescale1 = currentScale * sW1;
     for (let c = 0; c < 128; c++) {
       let acc = 0;
       for (let r = 0; r < 784; r++) acc += xs[r] * qW[r * 128 + c];
-      const relu_val = Math.max(0, acc * outScale + W.b1[c]);
-      const q_out = quantizeVal(relu_val, currentScale, currentZP);
-      h1_int8[c] = dequantizeVal(q_out, currentScale, currentZP);
+      const relu_val = Math.max(0, acc * rescale1 + W.b1[c]);
+      const q_out = quantizeVal(relu_val, sA, currentZP);
+      qA[c] = q_out - currentZP;
+      h1_int8[c] = dequantizeVal(q_out, sA, currentZP);
 
       const cell = cells[c];
       const prevQ = cell.dataset.qVal;
@@ -209,11 +225,12 @@
     }
 
     const out_int8 = new Float32Array(10);
-    const logitScale = currentScale * 2.5;
+    const qW2 = getQuantizedW("W2", W.W2, sW2);
     for (let c = 0; c < 10; c++) {
-      let sum = W.b2[c];
-      for (let r = 0; r < 128; r++) sum += h1_int8[r] * W.W2[r * 10 + c];
-      out_int8[c] = dequantizeVal(quantizeVal(sum, logitScale, currentZP), logitScale, currentZP);
+      let acc = 0;
+      for (let r = 0; r < 128; r++) acc += qA[r] * qW2[r * 10 + c];
+      const real = acc * sA * sW2 + W.b2[c];
+      out_int8[c] = dequantizeVal(quantizeVal(real, sO, currentZP), sO, currentZP);
     }
 
     // Telemetry
