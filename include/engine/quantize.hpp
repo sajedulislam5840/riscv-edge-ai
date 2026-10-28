@@ -12,13 +12,19 @@
 namespace engine
 {
 
+    enum class CalibrationMethod
+    {
+        MinMax,
+        Percentile
+    };
+
     struct QuantParams
     {
         float scale;
         int32_t zero_point;
     };
 
-    // Commit 13: Per-channel quantization parameters (e.g., per output column/filter)
+    // Per-channel quantization parameters (per output column/filter)
     struct PerChannelQuantParams
     {
         std::vector<float> scales;
@@ -28,6 +34,13 @@ namespace engine
     };
 
     QuantParams calculate_quant_params(float min_val, float max_val);
+
+    // Commit 14: Dynamic Range Calibration Modes
+    QuantParams calculate_quant_params_calibrated(
+        const Tensor<float> &input,
+        CalibrationMethod method = CalibrationMethod::MinMax,
+        float percentile = 99.9f);
+
     PerChannelQuantParams calculate_per_channel_params(const Tensor<float> &weight, bool per_column = true);
 
     int8_t quantize_val(float val, const QuantParams &params);
@@ -102,7 +115,7 @@ namespace engine
     QuantizedTensor quantize_tensor(const Tensor<float> &input, const QuantParams &params);
     Tensor<float> dequantize_tensor(const QuantizedTensor &input);
 
-    // Commit 13: Per-channel tensor quantization & dequantization
+    // Per-channel tensor quantization & dequantization
     QuantizedTensor quantize_tensor_per_channel(const Tensor<float> &input, const PerChannelQuantParams &params);
     Tensor<float> dequantize_tensor_per_channel(const QuantizedTensor &input, const PerChannelQuantParams &params);
 
@@ -112,7 +125,7 @@ namespace engine
     void relu(QuantizedTensor &X);
     void relu(const QuantizedTensor &input, QuantizedTensor &output);
 
-    // Commit 13: Per-channel GEMM (A is per-tensor, B is per-channel weight)
+    // Per-channel GEMM
     void matmul_int8_per_channel(const QuantizedTensor &A,
                                  const QuantizedTensor &B,
                                  const PerChannelQuantParams &B_params,
