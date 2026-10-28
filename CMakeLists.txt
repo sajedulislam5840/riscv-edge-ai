@@ -12,6 +12,7 @@ include_directories(include)
 # Core engine library
 add_library(engine_core
     src/ops.cpp
+    src/quantize.cpp
 )
 
 # Sanity host runner
@@ -49,4 +50,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_softmax.cpp")
     add_executable(test_softmax tests/test_softmax.cpp)
     target_link_libraries(test_softmax PRIVATE engine_core)
     add_test(NAME SoftmaxTest COMMAND test_softmax)
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_quantize.cpp")
+    add_executable(test_quantize tests/test_quantize.cpp)
+    target_link_libraries(test_quantize PRIVATE engine_core)
+    add_test(NAME QuantizationTest COMMAND test_quantize)
 endif()
