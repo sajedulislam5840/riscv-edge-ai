@@ -1,54 +1,83 @@
 #ifndef ENGINE_QUANTIZE_HPP
 #define ENGINE_QUANTIZE_HPP
 
+#include "engine/tensor.hpp"
 #include <cstdint>
-#include <cstddef>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+#include <stdexcept>
+#include <iostream>
 
 namespace engine {
 
-// Quantization parameters for affine INT8 mapping
-struct QuantizationParams {
-    float scale;        // Scale factor: S in q = (r / S) + Z
-    int32_t zero_point; // Zero-point offset: Z in q = (r / S) + Z
-
-    QuantizationParams() : scale(1.0f), zero_point(0) {}
-    QuantizationParams(float s, int32_t z) : scale(s), zero_point(z) {}
+struct QuantParams {
+    float scale;
+    int32_t zero_point;
 };
 
-// Quantization scheme types
-enum class QuantizationScheme {
-    SYMMETRIC,   // Zero-point = 0, symmetric range [-127, 127]
-    ASYMMETRIC   // Full range [-128, 127] with learned zero-point
+// Calculate scale and zero-point for asymmetric affine quantization
+QuantParams calculate_quant_params(float min_val, float max_val);
+
+// Convert single float value to INT8
+int8_t quantize_val(float val, const QuantParams& params);
+
+// Convert single INT8 value to float
+float dequantize_val(int8_t val, const QuantParams& params);
+
+// Quantized Tensor wrapper with fixed-point metadata
+class QuantizedTensor {
+public:
+    QuantizedTensor(size_t rows, size_t cols, QuantParams params)
+        : rows_(rows), cols_(cols), params_(params), data_(rows * cols, 0) {}
+
+    QuantizedTensor(size_t rows, size_t cols, QuantParams params, const std::vector<int8_t>& values)
+        : rows_(rows), cols_(cols), params_(params), data_(values) {
+        if (values.size() != rows * cols) {
+            throw std::invalid_argument("Size of initial values does not match tensor dimensions.");
+        }
+    }
+
+    size_t rows() const { return rows_; }
+    size_t cols() const { return cols_; }
+    size_t size() const { return data_.size(); }
+
+    const QuantParams& params() const { return params_; }
+    void set_params(const QuantParams& params) { params_ = params; }
+
+    int8_t* data() { return data_.data(); }
+    const int8_t* data() const { return data_.data(); }
+
+    int8_t& operator()(size_t r, size_t c) {
+        return data_[r * cols_ + c];
+    }
+
+    const int8_t& operator()(size_t r, size_t c) const {
+        return data_[r * cols_ + c];
+    }
+
+    void print() const {
+        std::cout << "QuantizedTensor (" << rows_ << "x" << cols_ 
+                  << ", scale=" << params_.scale << ", zp=" << params_.zero_point << "):\n";
+        for (size_t r = 0; r < rows_; ++r) {
+            std::cout << "  [ ";
+            for (size_t c = 0; c < cols_; ++c) {
+                std::cout << static_cast<int>((*this)(r, c)) << " ";
+            }
+            std::cout << "]\n";
+        }
+    }
+
+private:
+    size_t rows_;
+    size_t cols_;
+    QuantParams params_;
+    std::vector<int8_t> data_;
 };
 
-// Calculate quantization parameters from floating-point data
-QuantizationParams calculate_quantization_params(
-    const float* data,
-    size_t size,
-    QuantizationScheme scheme = QuantizationScheme::SYMMETRIC
-);
-
-// Quantize FP32 value to INT8 using given parameters
-int8_t quantize_value(float value, const QuantizationParams& params);
-
-// Quantize array of FP32 values to INT8
-void quantize_array(
-    const float* input,
-    int8_t* output,
-    size_t size,
-    const QuantizationParams& params
-);
-
-// Dequantize INT8 value back to FP32
-float dequantize_value(int8_t quantized, const QuantizationParams& params);
-
-// Dequantize array of INT8 values to FP32
-void dequantize_array(
-    const int8_t* input,
-    float* output,
-    size_t size,
-    const QuantizationParams& params
-);
+// Forward declaration for tensor-level conversion
+QuantizedTensor quantize_tensor(const Tensor<float>& input, const QuantParams& params);
+Tensor<float> dequantize_tensor(const QuantizedTensor& input);
 
 } // namespace engine
 
