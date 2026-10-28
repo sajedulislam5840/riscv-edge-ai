@@ -526,7 +526,6 @@ namespace engine
         }
     }
 
-    // Commit 17: BatchNorm Folding Implementation
     void fold_batch_norm(
         Tensor<float> &weight,
         Tensor<float> &bias,
@@ -555,18 +554,15 @@ namespace engine
             float inv_std = 1.0f / std::sqrt(v[c] + epsilon);
             float scale_factor = g[c] * inv_std;
 
-            // Fold into weight matrix columns
             for (size_t r = 0; r < weight.rows(); ++r)
             {
                 weight(r, c) *= scale_factor;
             }
 
-            // Fold into bias vector
             b_out[c] = (b_out[c] - mu[c]) * scale_factor + b[c];
         }
     }
 
-    // Commit 18: Quantized LeakyReLU Implementation (Integer-only fixed point)
     void leaky_relu(QuantizedTensor &X, float alpha)
     {
         if (X.size() == 0)
@@ -623,6 +619,207 @@ namespace engine
                 out_ptr[i] = in_ptr[i];
             }
         }
+    }
+
+    // Commit 19: Quantized Element-Wise Addition (Integer-only)
+    void add_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
+    {
+        if (A.rows() != B.rows() || A.cols() != B.cols() ||
+            A.rows() != C.rows() || A.cols() != C.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in add_int8.");
+        }
+        if (A.size() == 0)
+            return;
+
+        const double real_mult_A = static_cast<double>(A.params().scale) / static_cast<double>(C.params().scale);
+        const double real_mult_B = static_cast<double>(B.params().scale) / static_cast<double>(C.params().scale);
+
+        int32_t mult_A, mult_B;
+        int shift_A, shift_B;
+        quantize_multiplier_and_shift(real_mult_A, mult_A, shift_A);
+        quantize_multiplier_and_shift(real_mult_B, mult_B, shift_B);
+
+        const int32_t zp_A = A.params().zero_point;
+        const int32_t zp_B = B.params().zero_point;
+        const int32_t zp_C = C.params().zero_point;
+
+        const size_t total = A.size();
+        const int8_t *a_ptr = A.data();
+        const int8_t *b_ptr = B.data();
+        int8_t *c_ptr = C.data();
+
+        for (size_t i = 0; i < total; ++i)
+        {
+            int32_t val_A = static_cast<int32_t>(a_ptr[i]) - zp_A;
+            int32_t val_B = static_cast<int32_t>(b_ptr[i]) - zp_B;
+
+            int32_t scaled_A = multiply_by_quantized_multiplier(val_A, mult_A, shift_A);
+            int32_t scaled_B = multiply_by_quantized_multiplier(val_B, mult_B, shift_B);
+
+            int32_t sum = scaled_A + scaled_B + zp_C;
+            c_ptr[i] = static_cast<int8_t>(std::clamp(sum, -128, 127));
+        }
+    }
+
+    // Commit 20: Quantized 2D Max Pooling
+    void maxpool2d_int8(
+        const QuantizedTensor &input,
+        QuantizedTensor &output,
+        size_t kernel_h,
+        size_t kernel_w,
+        size_t stride_h,
+        size_t stride_w)
+    {
+        size_t out_h = (input.rows() - kernel_h) / stride_h + 1;
+        size_t out_w = (input.cols() - kernel_w) / stride_w + 1;
+
+        if (output.rows() != out_h || output.cols() != out_w)
+        {
+            throw std::invalid_argument("Output tensor dimension mismatch in maxpool2d_int8.");
+        }
+        output.set_params(input.params());
+
+        for (size_t oh = 0; oh < out_h; ++oh)
+        {
+            for (size_t ow = 0; ow < out_w; ++ow)
+            {
+                size_t start_r = oh * stride_h;
+                size_t start_c = ow * stride_w;
+                int8_t max_val = -128;
+
+                for (size_t kh = 0; kh < kernel_h; ++kh)
+                {
+                    for (size_t kw = 0; kw < kernel_w; ++kw)
+                    {
+                        int8_t val = input(start_r + kh, start_c + kw);
+                        if (val > max_val)
+                            max_val = val;
+                    }
+                }
+                output(oh, ow) = max_val;
+            }
+        }
+    }
+
+    // Commit 20: Quantized 2D Average Pooling
+    void avgpool2d_int8(
+        const QuantizedTensor &input,
+        QuantizedTensor &output,
+        size_t kernel_h,
+        size_t kernel_w,
+        size_t stride_h,
+        size_t stride_w)
+    {
+        size_t out_h = (input.rows() - kernel_h) / stride_h + 1;
+        size_t out_w = (input.cols() - kernel_w) / stride_w + 1;
+
+        if (output.rows() != out_h || output.cols() != out_w)
+        {
+            throw std::invalid_argument("Output tensor dimension mismatch in avgpool2d_int8.");
+        }
+        output.set_params(input.params());
+
+        const int32_t zp = input.params().zero_point;
+        const double inv_window = 1.0 / static_cast<double>(kernel_h * kernel_w);
+        int32_t q_mult;
+        int shift;
+        quantize_multiplier_and_shift(inv_window, q_mult, shift);
+
+        for (size_t oh = 0; oh < out_h; ++oh)
+        {
+            for (size_t ow = 0; ow < out_w; ++ow)
+            {
+                size_t start_r = oh * stride_h;
+                size_t start_c = ow * stride_w;
+                int32_t sum = 0;
+
+                for (size_t kh = 0; kh < kernel_h; ++kh)
+                {
+                    for (size_t kw = 0; kw < kernel_w; ++kw)
+                    {
+                        sum += (static_cast<int32_t>(input(start_r + kh, start_c + kw)) - zp);
+                    }
+                }
+
+                int32_t avg = multiply_by_quantized_multiplier(sum, q_mult, shift);
+                int32_t res = avg + zp;
+                output(oh, ow) = static_cast<int8_t>(std::clamp(res, -128, 127));
+            }
+        }
+    }
+
+    // Commit 21: Model Parameter Serialization / Deserialization
+    void save_quantized_model(const std::string &filepath, const std::vector<QuantizedTensor> &tensors)
+    {
+        std::ofstream out(filepath, std::ios::binary);
+        if (!out.is_open())
+        {
+            throw std::runtime_error("Failed to open file for writing: " + filepath);
+        }
+
+        const uint32_t magic = 0x514E4554; // "QNET"
+        out.write(reinterpret_cast<const char *>(&magic), sizeof(magic));
+
+        uint32_t num_tensors = static_cast<uint32_t>(tensors.size());
+        out.write(reinterpret_cast<const char *>(&num_tensors), sizeof(num_tensors));
+
+        for (const auto &t : tensors)
+        {
+            uint32_t rows = static_cast<uint32_t>(t.rows());
+            uint32_t cols = static_cast<uint32_t>(t.cols());
+            float scale = t.params().scale;
+            int32_t zp = t.params().zero_point;
+
+            out.write(reinterpret_cast<const char *>(&rows), sizeof(rows));
+            out.write(reinterpret_cast<const char *>(&cols), sizeof(cols));
+            out.write(reinterpret_cast<const char *>(&scale), sizeof(scale));
+            out.write(reinterpret_cast<const char *>(&zp), sizeof(zp));
+
+            out.write(reinterpret_cast<const char *>(t.data()), t.size() * sizeof(int8_t));
+        }
+    }
+
+    std::vector<QuantizedTensor> load_quantized_model(const std::string &filepath)
+    {
+        std::ifstream in(filepath, std::ios::binary);
+        if (!in.is_open())
+        {
+            throw std::runtime_error("Failed to open file for reading: " + filepath);
+        }
+
+        uint32_t magic = 0;
+        in.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+        if (magic != 0x514E4554)
+        {
+            throw std::runtime_error("Invalid file header: not a valid QNET model binary.");
+        }
+
+        uint32_t num_tensors = 0;
+        in.read(reinterpret_cast<char *>(&num_tensors), sizeof(num_tensors));
+
+        std::vector<QuantizedTensor> result;
+        result.reserve(num_tensors);
+
+        for (uint32_t i = 0; i < num_tensors; ++i)
+        {
+            uint32_t rows = 0;
+            uint32_t cols = 0;
+            float scale = 0.0f;
+            int32_t zp = 0;
+
+            in.read(reinterpret_cast<char *>(&rows), sizeof(rows));
+            in.read(reinterpret_cast<char *>(&cols), sizeof(cols));
+            in.read(reinterpret_cast<char *>(&scale), sizeof(scale));
+            in.read(reinterpret_cast<char *>(&zp), sizeof(zp));
+
+            QuantParams qp = {scale, zp};
+            QuantizedTensor t(rows, cols, qp);
+            in.read(reinterpret_cast<char *>(t.data()), t.size() * sizeof(int8_t));
+            result.push_back(std::move(t));
+        }
+
+        return result;
     }
 
 } // namespace engine
