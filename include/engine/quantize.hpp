@@ -114,6 +114,68 @@ namespace engine
         std::vector<int8_t> data_;
     };
 
+    // Commit 16: Zero-Copy Quantized Sub-Tensor View
+    class QuantizedTensorView
+    {
+    public:
+        QuantizedTensorView(int8_t *base_ptr, size_t rows, size_t cols, size_t stride, QuantParams params)
+            : data_(base_ptr), rows_(rows), cols_(cols), stride_(stride), params_(params) {}
+
+        size_t rows() const { return rows_; }
+        size_t cols() const { return cols_; }
+        size_t stride() const { return stride_; }
+        const QuantParams &params() const { return params_; }
+
+        int8_t &operator()(size_t r, size_t c)
+        {
+            if (r >= rows_ || c >= cols_)
+            {
+                throw std::out_of_range("QuantizedTensorView index out of bounds.");
+            }
+            return data_[r * stride_ + c];
+        }
+
+        const int8_t &operator()(size_t r, size_t c) const
+        {
+            if (r >= rows_ || c >= cols_)
+            {
+                throw std::out_of_range("QuantizedTensorView index out of bounds.");
+            }
+            return data_[r * stride_ + c];
+        }
+
+        void print() const
+        {
+            std::cout << "QuantizedTensorView (" << rows_ << "x" << cols_
+                      << ", stride=" << stride_ << ", scale=" << params_.scale
+                      << ", zp=" << params_.zero_point << "):\n";
+            for (size_t r = 0; r < rows_; ++r)
+            {
+                std::cout << "  [ ";
+                for (size_t c = 0; c < cols_; ++c)
+                {
+                    std::cout << static_cast<int>((*this)(r, c)) << " ";
+                }
+                std::cout << "]\n";
+            }
+        }
+
+    private:
+        int8_t *data_;
+        size_t rows_;
+        size_t cols_;
+        size_t stride_;
+        QuantParams params_;
+    };
+
+    // Slice constructor helper
+    QuantizedTensorView slice_tensor(
+        QuantizedTensor &tensor,
+        size_t start_row,
+        size_t start_col,
+        size_t num_rows,
+        size_t num_cols);
+
     // Conversions
     QuantizedTensor quantize_tensor(const Tensor<float> &input, const QuantParams &params);
     Tensor<float> dequantize_tensor(const QuantizedTensor &input);
@@ -136,6 +198,9 @@ namespace engine
 
     // Integer-only fixed point GEMM (FPU-free requantization)
     void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
+
+    // View-based GEMM kernel
+    void matmul_int8_view(const QuantizedTensorView &A, const QuantizedTensorView &B, QuantizedTensorView &C);
 
 } // namespace engine
 

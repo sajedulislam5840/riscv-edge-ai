@@ -142,7 +142,6 @@ namespace engine
         return (static_cast<float>(val) - static_cast<float>(params.zero_point)) * params.scale;
     }
 
-    // Convert real multiplier into Q31 normalized multiplier and net right shift
     void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift)
     {
         if (double_multiplier <= 0.0)
@@ -163,11 +162,9 @@ namespace engine
         }
 
         quantized_multiplier = static_cast<int32_t>(q);
-        // Net right shift accounting for the Q31 format
         shift = 31 - exponent;
     }
 
-    // Fixed-point multiplication with symmetric integer rounding
     int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift)
     {
         int64_t total = static_cast<int64_t>(x) * static_cast<int64_t>(quantized_multiplier);
@@ -260,6 +257,22 @@ namespace engine
         return output;
     }
 
+    QuantizedTensorView slice_tensor(
+        QuantizedTensor &tensor,
+        size_t start_row,
+        size_t start_col,
+        size_t num_rows,
+        size_t num_cols)
+    {
+        if (start_row + num_rows > tensor.rows() || start_col + num_cols > tensor.cols())
+        {
+            throw std::out_of_range("Slice bounds exceed tensor dimensions.");
+        }
+
+        int8_t *base_ptr = tensor.data() + (start_row * tensor.cols() + start_col);
+        return QuantizedTensorView(base_ptr, num_rows, num_cols, tensor.cols(), tensor.params());
+    }
+
     void matmul_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
     {
         if (A.size() == 0 || B.size() == 0)
@@ -304,7 +317,6 @@ namespace engine
         }
     }
 
-    // Integer-only Fixed-Point GEMM (FPU-free requantization)
     void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
     {
         if (A.size() == 0 || B.size() == 0)
@@ -347,6 +359,46 @@ namespace engine
 
                 int32_t scaled_acc = multiply_by_quantized_multiplier(acc, q_multiplier, shift);
                 int32_t res = scaled_acc + zp_C;
+                C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
+            }
+        }
+    }
+
+    void matmul_int8_view(const QuantizedTensorView &A, const QuantizedTensorView &B, QuantizedTensorView &C)
+    {
+        if (A.cols() != B.rows())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_view: A.cols must match B.rows.");
+        }
+        if (C.rows() != A.rows() || C.cols() != B.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_view: Output view dimension invalid.");
+        }
+
+        const size_t M = A.rows();
+        const size_t K = A.cols();
+        const size_t N = B.cols();
+
+        const int32_t zp_A = A.params().zero_point;
+        const int32_t zp_B = B.params().zero_point;
+        const int32_t zp_C = C.params().zero_point;
+
+        const float effective_scale = (A.params().scale * B.params().scale) / C.params().scale;
+
+        for (size_t i = 0; i < M; ++i)
+        {
+            for (size_t j = 0; j < N; ++j)
+            {
+                int32_t acc = 0;
+                for (size_t k = 0; k < K; ++k)
+                {
+                    int32_t val_A = static_cast<int32_t>(A(i, k)) - zp_A;
+                    int32_t val_B = static_cast<int32_t>(B(k, j)) - zp_B;
+                    acc += val_A * val_B;
+                }
+
+                float scaled_acc = static_cast<float>(acc) * effective_scale;
+                int32_t res = static_cast<int32_t>(std::round(scaled_acc)) + zp_C;
                 C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
             }
         }
