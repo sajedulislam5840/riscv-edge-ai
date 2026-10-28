@@ -142,7 +142,7 @@ namespace engine
         return (static_cast<float>(val) - static_cast<float>(params.zero_point)) * params.scale;
     }
 
-    // Commit 15: Decompose double multiplier into Q31 integer multiplier and right shift
+    // Convert real multiplier into Q31 normalized multiplier and net right shift
     void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift)
     {
         if (double_multiplier <= 0.0)
@@ -163,15 +163,20 @@ namespace engine
         }
 
         quantized_multiplier = static_cast<int32_t>(q);
-        shift = -exponent;
+        // Net right shift accounting for the Q31 format
+        shift = 31 - exponent;
     }
 
     // Fixed-point multiplication with symmetric integer rounding
     int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift)
     {
         int64_t total = static_cast<int64_t>(x) * static_cast<int64_t>(quantized_multiplier);
-        int64_t rounding = 1LL << (shift - 1);
-        int64_t result = (total + rounding) >> shift;
+        if (shift <= 0)
+        {
+            return static_cast<int32_t>(total << (-shift));
+        }
+        int64_t round_val = 1LL << (shift - 1);
+        int64_t result = (total + round_val) >> shift;
         return static_cast<int32_t>(result);
     }
 
@@ -299,7 +304,7 @@ namespace engine
         }
     }
 
-    // Commit 15: Integer-only Fixed-Point GEMM (Zero FPU instructions)
+    // Integer-only Fixed-Point GEMM (FPU-free requantization)
     void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
     {
         if (A.size() == 0 || B.size() == 0)
@@ -340,7 +345,6 @@ namespace engine
                     acc += val_A * val_B;
                 }
 
-                // Fixed point requantization without float operations
                 int32_t scaled_acc = multiply_by_quantized_multiplier(acc, q_multiplier, shift);
                 int32_t res = scaled_acc + zp_C;
                 C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
