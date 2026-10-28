@@ -5,16 +5,15 @@
   <img src="https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=c%2B%2B&logoColor=white" alt="C++17"/>
   <img src="https://img.shields.io/badge/ISA-RISC--V_RV32I%2FM-d33682?style=flat-square" alt="RISC-V"/>
   <img src="https://img.shields.io/badge/Hardware-Verilog_RTL-8B0000?style=flat-square" alt="Verilog"/>
-  <img src="https://img.shields.io/badge/Quantization-INT8_Affine-268bd2?style=flat-square" alt="INT8"/>
-  <img src="https://img.shields.io/badge/Architecture-HW%2FSW_Codesign-8B5CF6?style=flat-square" alt="Co-Design"/>
-  <img src="https://img.shields.io/badge/Phase-02%2F06_Active-2ea44f?style=flat-square" alt="Status"/>
+  <img src="https://img.shields.io/badge/Quantization-INT8_Affine_%26_Per--Channel-268bd2?style=flat-square" alt="INT8"/>
+  <img src="https://img.shields.io/badge/Arithmetic-Fixed--Point_Q31-orange?style=flat-square" alt="Fixed-Point"/>
+  <img src="https://img.shields.io/badge/Release-v0.2.5-blueviolet?style=flat-square" alt="Release"/>
+  <img src="https://img.shields.io/badge/Phase-2.5%2F06_Complete-2ea44f?style=flat-square" alt="Status"/>
 </p>
 
 <p align="center">
-  <strong>A research-grade inference runtime implementing affine quantization, custom SIMD hardware acceleration, and cycle-accurate performance profiling for resource-constrained embedded systems.</strong>
+  <strong>A research-grade bare-metal inference runtime implementing integer-only fixed-point arithmetic, per-channel affine quantization, empirical MNIST validation, and interactive telemetry visualization for FPU-free embedded systems.</strong>
 </p>
-
-<p align="center">
   <a href="#-live-demo">🌐 Interactive Web Demo</a> •
   <a href="#-benchmark-results">📊 Benchmark Results</a> •
   <a href="#-quick-start">🚀 Quick Start</a> •
@@ -43,13 +42,13 @@ This project demonstrates end-to-end neural network inference optimization for R
 
 ## 🌐 Live Demo
 
-**Interactive Web Interface:** [View Live Demo](https://sajedulislam5840.github.io/riscv-edge-ai/) *(Coming Soon)*
+**Interactive Web Profiler:** [Launch Live Visualizer](https://sajedulislam5840.github.io/riscv-edge-ai/)
 
-The web demo provides:
-- **Layer-by-Layer Visualization** — Inspect activation values through the network
-- **FP32 vs INT8 Comparison** — Side-by-side accuracy and performance analysis
-- **Quantization Explorer** — Interactive sliders for scale/zero-point parameters
-- **Real-Time Inference** — Run neural network inference in your browser
+The browser-based instrument provides:
+- **Interactive 28×28 Digit Canvas** — Draw handwritten digits with real-time center-of-mass downsampling
+- **Dual Inference Datapath** — Live side-by-side execution of FP32 reference vs. INT8 fixed-point integer runtime
+- **128-Node Activation Inspector** — Organic spatial heatmap with hover register dumps (hexadecimal register view)
+- **Quantization Distortion Telemetry** — Real-time tracking of SQNR (dB), RMSE drift, and $L_\infty$ degradation across dynamic scale ($S$) and zero-point ($Z$) adjustments
 
 <p align="center">
   <img src="docs/assets/web_demo_preview.png" alt="Web Demo Preview" width="90%"/>
@@ -291,10 +290,10 @@ For instant experimentation without toolchain installation:
 | Phase | Objectives | Status | ETA |
 |:------|:-----------|:------:|:---:|
 | **Phase 01** | FP32 baseline: GEMM, ReLU, Softmax, bias addition, 2-layer MLP demo | **✅ Complete** | Oct 2026 |
-| **Phase 02** | INT8 quantization: Affine mapping, scale/zero-point calibration, requantization | **✅ Complete** | Oct 2026 |
-| **Phase 2.5** | Experimental validation: MNIST benchmark, web visualization, performance profiling | **🔄 In Progress** | Nov 2026 |
-| **Phase 03** | Hardware co-design: Verilog SIMD MAC, ISA extension, testbench validation | **📅 Planned** | Nov 2026 |
-| **Phase 04** | Bare-metal integration: Freestanding runtime, RISC-V simulator, cycle profiling | **📅 Planned** | Dec 2026 |
+| **Phase 02** | INT8 quantization: Affine mapping, Q31 fixed-point, per-channel, arena memory | **✅ Complete** | Oct 2026 |
+| **Phase 2.5** | Empirical validation: MNIST C++ harness, `.qbin` exporter, web telemetry profiler | **✅ Complete** | Oct 2026 |
+| **Phase 03** | Hardware co-design: Verilog SIMD MAC, custom-0 ISA extension, testbench | **🔄 Next Up** | Nov 2026 |
+| **Phase 04** | Bare-metal deployment: Freestanding runtime, RISC-V simulator, CSR cycle profiling | **📅 Planned** | Dec 2026 |
 | **Phase 05** | Documentation & publication: Technical report, LaTeX proofs, reproducibility package | **📅 Planned** | Dec 2026 |
 
 **Project Timeline:** October 2026 - December 2026 (~8 weeks active development)
@@ -321,27 +320,27 @@ For instant experimentation without toolchain installation:
 - Memory footprint: 344 bytes (weights) + 48 bytes (activations) = 392 bytes total
 - Cache efficiency: 100% L1 hit rate (verified via `perf stat`)
 
-### Phase 02: Quantization (In Progress 🔄)
+### Phase 02: Fixed-Point Quantization Engine (Complete ✅)
 
-**Implementation Plan:**
-1. **Calibration Stage:** Compute per-tensor scale and zero-point from representative data
-2. **Weight Quantization:** Offline conversion of FP32 weights → INT8 (lossless compression)
-3. **Activation Quantization:** Dynamic quantization during inference with clipping
-4. **Fused Operations:** GEMM + bias + requantization in single pass to minimize memory traffic
+**Delivered Features:**
+1. **Zero-Float Requantization:** Q31 multiplier normalization ($M_0 \in [2^{30}, 2^{31}-1]$) and bit-shifts eliminating software-emulated floats during bare-metal runtime.
+2. **Offline BatchNorm Folding:** Folded scaling factor $\gamma$ and running statistics ($\mu, \sigma^2$) directly into dense weights and biases.
+3. **Static Memory Arena:** Implemented deterministic `ArenaAllocator` preventing heap fragmentation and unbounded runtime allocations.
+4. **Sub-Tensor Views:** Contiguous strided coordinate mapping via `QuantizedTensorView` to eliminate intermediate tensor allocations.
 
-**Error Analysis Framework:**
-- L∞ norm: Maximum absolute deviation between quantized and reference output
-- L² norm: Root mean square error across all activations
-- Classification accuracy: Top-1 agreement rate for multi-class tasks
-- Target: <2% accuracy degradation vs. FP32 baseline for typical workloads
+### Phase 2.5: Empirical Validation & Web Visualizer (Complete ✅)
 
-### Phase 2.5: Experimental Validation (Planned 📅)
-
-**MNIST Benchmark Suite:**
-- **Dataset:** 60,000 training images, 10,000 test images (28×28 grayscale)
-- **Model Architecture:** 2-layer MLP (784 → 128 → 10) matching software implementation
-- **Training:** PyTorch with Adam optimizer, cross-entropy loss, 10 epochs
-- **Metrics:** Top-1 accuracy, confusion matrix, per-class precision/recall
+**Delivered Features:**
+1. **PyTorch Training & Binary Exporter:**
+   - 2-layer MLP ($784 \to 128 \to 10$) trained on MNIST.
+   - Built custom `.qbin` binary serializer/deserializer to store quantized model parameters.
+2. **C++ Empirical Benchmark Harness:**
+   - Evaluated 1,000 samples under identical floating-point and integer fixed-point conditions.
+   - Verified **98.20% Top-1 agreement rate** with **2.86× execution speedup**.
+   - Maximum logit error kept within $\le 1$ quantization bin ($L_\infty = 0.0782$).
+3. **Interactive Telemetry Dashboard:**
+   - Developed in vanilla JS and Chart.js under `web/` with zero heavy dependencies.
+   - Features real-time SQNR computation, register dump tooltips, and interactive scale/zero-point manipulation.
 
 **Web Visualization Interface:**
 - **Technology Stack:** Vanilla JavaScript, Chart.js for plots, HTML5 Canvas for network rendering
@@ -412,10 +411,11 @@ This project bridges three critical domains in modern computer engineering:
 ### Internal Documentation
 - [**docs/PHASE_01_COMPLETE.md**](docs/PHASE_01_COMPLETE.md) — Detailed Phase 01 retrospective with FP32 software baseline & code metrics
 - [**docs/PHASE_02_COMPLETE.md**](docs/PHASE_02_COMPLETE.md) — Phase 02 technical report: Fixed-point derivations, Q31 multiplier scaling, and arena memory design
-- [**docs/BENCHMARK_RESULTS.md**](docs/BENCHMARK_RESULTS.md) — [Phase 2.5] Empirical validation and performance analysis
+- [**docs/PHASE_2.5_COMPLETE.md**](docs/PHASE_2.5_COMPLETE.md) — Phase 2.5 retrospective: Empirical MNIST benchmark results and web telemetry architecture
+- [**docs/BENCHMARK_RESULTS.md**](docs/BENCHMARK_RESULTS.md) — Empirical validation data and numerical error profiles
 - [**docs/architecture_spec.md**](docs/architecture_spec.md) — [Phase 03] ISA extension encoding and microarchitectural specifications
 - [**docs/quantization_spec.md**](docs/quantization_spec.md) — Complete mathematical derivations for INT8 affine and per-channel quantization schemes
-- [**web/README.md**](web/README.md) — Web demo architecture and interactive visualization guide
+- [**web/README.md**](web/README.md) — Web telemetry dashboard architecture and local hosting guide
 
 ### External References & Specifications
 - **RISC-V ISA Specification:** [riscv.org/specifications](https://riscv.org/technical/specifications/)
@@ -499,5 +499,5 @@ If you use this work in academic research, please cite:
 </p>
 
 <p align="center">
-  <sub>Last Updated: October 28, 2026 | Version 0.2.5 (Phase 02 + Validation Active)</sub>
+  <sub>Last Updated: October 28, 2026 | Version 0.2.5 (Phase 2.5 Complete • Phase 03 Next)</sub>
 </p>
