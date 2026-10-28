@@ -1,0 +1,121 @@
+﻿// Mock weights for the 784 -> 128 -> 10 MLP model
+const ModelWeights = {
+  W1: new Float32Array(784 * 128),
+  b1: new Float32Array(128),
+  W2: new Float32Array(128 * 10),
+  b2: new Float32Array(10)
+};
+
+// Seed synthetic weights that respond strongly to centered digit strokes
+(function initializeSyntheticWeights() {
+  for (let i = 0; i < 784 * 128; i++) {
+    const r = Math.floor(i / 128);
+    const c = i % 128;
+    const distFromCenter = Math.hypot((r % 28) - 14, Math.floor(r / 28) - 14);
+    ModelWeights.W1[i] = (Math.sin(i * 0.13) * 0.4) * (distFromCenter < 10 ? 1.5 : 0.2);
+  }
+  for (let i = 0; i < 128; i++) {
+    ModelWeights.b1[i] = (Math.sin(i) * 0.05);
+  }
+  for (let i = 0; i < 128 * 10; i++) {
+    const hiddenIdx = Math.floor(i / 10);
+    const classIdx = i % 10;
+    ModelWeights.W2[i] = Math.cos(hiddenIdx * 0.3 + classIdx) * 0.5;
+  }
+  for (let i = 0; i < 10; i++) {
+    ModelWeights.b2[i] = 0.0;
+  }
+})();
+
+// Canvas Controller
+class DigitCanvas {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas.getContext('2d');
+    this.isDrawing = false;
+    this.setupListeners();
+    this.clear();
+  }
+
+  setupListeners() {
+    const start = (e) => {
+      this.isDrawing = true;
+      this.draw(e);
+    };
+    const stop = () => {
+      this.isDrawing = false;
+      this.ctx.beginPath();
+      if (window.triggerInference) window.triggerInference();
+    };
+
+    this.canvas.addEventListener('mousedown', start);
+    this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+    window.addEventListener('mouseup', stop);
+
+    this.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e.touches[0]); });
+    this.canvas.addEventListener('touchmove', (e) => { e.preventDefault(); this.draw(e.touches[0]); });
+    window.addEventListener('touchend', stop);
+
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      this.clear();
+      if (window.triggerInference) window.triggerInference();
+    });
+
+    document.getElementById('btn-invert').addEventListener('click', () => {
+      this.invert();
+      if (window.triggerInference) window.triggerInference();
+    });
+  }
+
+  draw(e) {
+    if (!this.isDrawing) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    this.ctx.lineWidth = 18;
+    this.ctx.lineCap = 'round';
+    this.ctx.strokeStyle = '#ffffff';
+
+    this.ctx.lineTo(x, y);
+    this.ctx.stroke();
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+  }
+
+  clear() {
+    this.ctx.fillStyle = '#000000';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.beginPath();
+  }
+
+  invert() {
+    const imgData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      d[i] = 255 - d[i];
+      d[i + 1] = 255 - d[i + 1];
+      d[i + 2] = 255 - d[i + 2];
+    }
+    this.ctx.putImageData(imgData, 0, 0);
+  }
+
+  getDownsampledPixels() {
+    const off = document.createElement('canvas');
+    off.width = 28;
+    off.height = 28;
+    const offCtx = off.getContext('2d');
+    offCtx.drawImage(this.canvas, 0, 0, 28, 28);
+    const img = offCtx.getImageData(0, 0, 28, 28).data;
+
+    const tensor = new Float32Array(784);
+    for (let i = 0; i < 784; i++) {
+      // Normalize [0, 255] -> [-1.0, 1.0]
+      tensor[i] = (img[i * 4] / 127.5) - 1.0;
+    }
+    return tensor;
+  }
+}
+
+window.DigitCanvas = DigitCanvas;
+window.ModelWeights = ModelWeights;
