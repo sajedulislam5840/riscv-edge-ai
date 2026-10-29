@@ -1,0 +1,8 @@
+MNIST Benchmark Evaluation Summary
+Samples: 1000
+Agreement Rate: 97.6%
+Max Logit Error: 16.9316
+RMSE: 1.10006
+FP32 Avg Latency: 210.555 us
+INT8 Avg Latency: 285.636 us
+Speedup: 0.737146x
