@@ -2,3 +2,8 @@ build/
 bin/
 *.o
 *.a
+*.exe
+*.npz
+*.pth
+data/
+__pycache__/
