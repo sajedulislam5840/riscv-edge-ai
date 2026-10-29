@@ -246,6 +246,8 @@ namespace engine
                                  QuantizedTensor &C);
 
     void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C);
+    void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C, int32_t q_multiplier, int shift);
+    void matmul_int8_fixed_point_fused(const QuantizedTensor &A, const QuantizedTensor &B, const QuantizedTensor &bias, QuantizedTensor &C, int32_t q_multiplier, int shift, bool apply_relu = false);
     void matmul_int8_view(const QuantizedTensorView &A, const QuantizedTensorView &B, QuantizedTensorView &C);
 
     void fold_batch_norm(
