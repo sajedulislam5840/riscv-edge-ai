@@ -1,128 +1,159 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0d1117" />
+  <meta name="theme-color" content="#020408" />
   <meta name="description"
     content="Interactive FP32 vs INT8 quantization profiler for a bare-metal RISC-V neural runtime." />
-  <title>RISC-V Bare-Metal Neural Runtime Profiler</title>
+  <title>RISC-V · Bare-Metal Neural Runtime Profiler</title>
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
+  <!-- Animated particle background -->
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+
   <header class="telemetry-bar">
     <div class="system-id">
       <span class="live-dot" aria-hidden="true"></span>
-      <span class="system-badge">RV32I_INT8</span>
-      <span>RUNTIME: BARE-METAL (NO-FPU)</span>
+      <span class="system-badge">RV32I · INT8</span>
+      <span style="color:var(--text-muted);letter-spacing:.06em;">RUNTIME: BARE-METAL · NO-FPU · FIXED-POINT Q31</span>
     </div>
     <div class="metrics-cluster">
-      <div class="metric-group"><span class="metric-k">SRAM PEAK:</span><span class="metric-v">924 B</span></div>
-      <div class="metric-group"><span class="metric-k">ARENA CAP:</span><span class="metric-v">64.0 KB</span></div>
-      <div class="metric-group"><span class="metric-k">TOTAL MACs:</span><span class="metric-v">101,632</span></div>
-      <div class="metric-group"><span class="metric-k">PARITY:</span><span class="metric-v"
-          id="live-parity">98.2%</span></div>
+      <div class="metric-group">
+        <span class="metric-k">SRAM&nbsp;PEAK:</span>
+        <span class="metric-v">924&nbsp;B</span>
+      </div>
+      <div class="metric-group">
+        <span class="metric-k">ARENA:</span>
+        <span class="metric-v">64.0&nbsp;KB</span>
+      </div>
+      <div class="metric-group">
+        <span class="metric-k">MACs:</span>
+        <span class="metric-v">101,632</span>
+      </div>
+      <div class="metric-group">
+        <span class="metric-k">PARITY:</span>
+        <span class="metric-v" id="live-parity">98.2%</span>
+      </div>
+      <div class="metric-group">
+        <span class="metric-k">CYCLES&nbsp;EST:</span>
+        <span class="metric-v" id="metric-cycles" style="color:var(--neon-amber);text-shadow:0 0 8px rgba(251,191,36,.45);">114,280</span>
+      </div>
     </div>
   </header>
 
   <main class="workbench-grid">
 
+    <!-- ── PANEL 1: Input Acquisition ── -->
     <section class="pane" aria-label="Input acquisition">
       <div class="pane-header">
         <span>1. Input Acquisition</span>
         <span>X ∈ ℝ¹ˣ⁷⁸⁴</span>
       </div>
       <div class="pane-body">
+
         <div class="canvas-holder">
-          <canvas id="digit-canvas" width="224" height="224" aria-label="Draw a digit here"></canvas>
+          <canvas id="digit-canvas" width="224" height="224"
+            aria-label="Draw a digit here — inference runs in real time"></canvas>
           <div class="action-row">
-            <button id="btn-clear" class="action-btn" type="button">RESET</button>
-            <button id="btn-invert" class="action-btn" type="button">INVERT</button>
+            <button id="btn-clear"  class="action-btn" type="button">⟳ RESET</button>
+            <button id="btn-invert" class="action-btn" type="button">⇄ INVERT</button>
           </div>
         </div>
 
-        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary);">
-          <div>BASE: <span style="color: var(--accent-cyan);">0x8000_1000</span></div>
-          <div>STRIDE: 28 BYTES (CONTIGUOUS)</div>
+        <div class="mem-info">
+          <span>BASE: <span class="hl">0x8000_1000</span></span>
+          <span>STRIDE: 28 B · LAYOUT: CONTIGUOUS ROW-MAJOR</span>
         </div>
 
         <div class="hex-view" id="hex-inspector" aria-live="off"></div>
+
       </div>
     </section>
 
+    <!-- ── PANEL 2: Datapath Execution ── -->
     <section class="pane" aria-label="Datapath execution">
       <div class="pane-header">
         <span>2. Datapath Execution</span>
-        <span>784 → 128 → 10</span>
+        <span>784 → FC(128)+ReLU → FC(10)+Softmax</span>
       </div>
       <div class="pane-body">
+
         <div>
-          <div
-            style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; margin-bottom: 6px;">
-            <span style="color: var(--text-secondary);">H1 INT8 ACTIVATIONS (128 NODES)</span>
-            <span id="node-telemetry" style="color: var(--accent-cyan);">HOVER FOR REG DUMP</span>
+          <div class="info-label" style="margin-bottom:8px;">
+            <span>H1 INT8 ACTIVATIONS <span class="hl-cyan">(128 NODES · 16×8)</span></span>
+            <span id="node-telemetry" class="hl-cyan" style="font-family:var(--font-mono);font-size:10px;">HOVER NODE FOR REG DUMP</span>
           </div>
           <div id="hidden-activations" class="dense-grid"></div>
         </div>
 
-        <div style="flex: 1; min-height: 180px; display: flex; flex-direction: column;">
-          <div
-            style="font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">
-            LOGIT COMPLIANCE (FP32 VS INT8 FIXED-POINT)
+        <div style="flex:1;min-height:200px;display:flex;flex-direction:column;gap:6px;">
+          <div class="info-label">
+            <span>LOGIT COMPLIANCE <span class="hl-cyan">FP32 REF</span> vs <span class="hl-green">INT8 FIXED-POINT</span></span>
           </div>
-          <div style="flex: 1; position: relative;">
+          <div style="flex:1;position:relative;">
             <canvas id="logit-chart"></canvas>
           </div>
         </div>
+
       </div>
     </section>
 
+    <!-- ── PANEL 3: Quantization Telemetry ── -->
     <section class="pane" aria-label="Quantization telemetry">
       <div class="pane-header">
         <span>3. Quantization Telemetry</span>
-        <span>FIXED-POINT Q31</span>
+        <span>Q31 FIXED-POINT</span>
       </div>
       <div class="pane-body">
 
+        <!-- Sliders -->
         <div class="field-row">
-          <div class="field-label"><span>SCALE FACTOR (S)</span><span id="scale-val">0.00784</span></div>
-          <input type="range" id="param-scale" min="0.001" max="0.030" step="0.0005" value="0.00784"
-            aria-label="Scale factor" />
+          <div class="field-label">
+            <span>SCALE FACTOR (S)</span>
+            <span id="scale-val">0.00784</span>
+          </div>
+          <input type="range" id="param-scale" min="0.001" max="0.030" step="0.0005"
+            value="0.00784" aria-label="Scale factor" />
         </div>
 
         <div class="field-row">
-          <div class="field-label"><span>ZERO-POINT (Z)</span><span id="zp-val">0</span></div>
-          <input type="range" id="param-zp" min="-128" max="127" step="1" value="0" aria-label="Zero point" />
+          <div class="field-label">
+            <span>ZERO-POINT (Z)</span>
+            <span id="zp-val">0</span>
+          </div>
+          <input type="range" id="param-zp" min="-128" max="127" step="1"
+            value="0" aria-label="Zero point" />
         </div>
 
-        <table class="perf-table">
+        <!-- Metrics table -->
+        <table class="perf-table" aria-label="Quantization error metrics">
           <tr>
-            <td>SQNR (SNR)</td>
+            <td>SQNR (Signal-to-Quant Noise)</td>
             <td id="metric-sqnr">44.1 dB</td>
           </tr>
           <tr>
-            <td>RMSE GAP</td>
+            <td>RMSE (Output Logit Gap)</td>
             <td id="metric-rmse">0.0142</td>
           </tr>
           <tr>
             <td>MAX L∞ DRIFT</td>
             <td id="metric-linf">0.0520</td>
           </tr>
-          <tr>
-            <td>EST. CYCLES</td>
-            <td id="metric-cycles">114,280</td>
-          </tr>
         </table>
 
-        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-          CLASSIFICATION LOGITS
+        <!-- Prediction bars -->
+        <div class="info-label">
+          <span>CLASSIFICATION LOGITS</span>
+          <span id="top-pred-label" class="hl-green" style="font-family:var(--font-mono);font-size:10px;"></span>
         </div>
-
         <div id="prob-container" class="prediction-stack"></div>
+
       </div>
     </section>
 
@@ -130,6 +161,97 @@
 
   <script src="js/network.js"></script>
   <script src="js/quantization.js"></script>
-</body>
 
+  <!-- Animated particle background -->
+  <script>
+    (function () {
+      const canvas = document.getElementById('bg-canvas');
+      const ctx = canvas.getContext('2d');
+      let W, H, nodes, rafId;
+
+      const COLORS = ['#38bdf8','#06b6d4','#4ade80','#a78bfa','#fbbf24'];
+      const N = 55;
+
+      function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+      }
+
+      function mkNode() {
+        return {
+          x: Math.random() * W,
+          y: Math.random() * H,
+          vx: (Math.random() - 0.5) * 0.35,
+          vy: (Math.random() - 0.5) * 0.35,
+          r: 1.2 + Math.random() * 2.2,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          pulse: Math.random() * Math.PI * 2,
+          pulseSpeed: 0.012 + Math.random() * 0.018
+        };
+      }
+
+      function init() {
+        resize();
+        nodes = Array.from({length: N}, mkNode);
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Draw connecting lines between close nodes
+        for (let i = 0; i < N; i++) {
+          for (let j = i + 1; j < N; j++) {
+            const dx = nodes[i].x - nodes[j].x;
+            const dy = nodes[i].y - nodes[j].y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 160) {
+              const alpha = (1 - dist / 160) * 0.25;
+              ctx.beginPath();
+              ctx.moveTo(nodes[i].x, nodes[i].y);
+              ctx.lineTo(nodes[j].x, nodes[j].y);
+              ctx.strokeStyle = `rgba(56,189,248,${alpha})`;
+              ctx.lineWidth = 0.6;
+              ctx.stroke();
+            }
+          }
+        }
+
+        // Draw nodes
+        for (const n of nodes) {
+          n.pulse += n.pulseSpeed;
+          const glowR = n.r + Math.sin(n.pulse) * 1.2;
+
+          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR * 5);
+          grad.addColorStop(0,   n.color + 'dd');
+          grad.addColorStop(0.4, n.color + '55');
+          grad.addColorStop(1,   n.color + '00');
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, glowR * 5, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+          ctx.fillStyle = n.color;
+          ctx.fill();
+
+          // Move
+          n.x += n.vx;
+          n.y += n.vy;
+          if (n.x < -20) n.x = W + 20;
+          if (n.x > W + 20) n.x = -20;
+          if (n.y < -20) n.y = H + 20;
+          if (n.y > H + 20) n.y = -20;
+        }
+
+        rafId = requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', () => { resize(); });
+      init();
+      draw();
+    })();
+  </script>
+
+</body>
 </html>
