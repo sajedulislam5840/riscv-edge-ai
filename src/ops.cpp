@@ -109,7 +109,7 @@ void softmax(Tensor<float>& X) {
     }
 }
 
-// INT8 matrix multiplication with 32-bit accumulator
+// Symmetric INT8 matrix multiplication with 32-bit accumulator (Z_A = Z_B = 0)
 void matmul_int8(
     const int8_t* A, size_t M, size_t K,
     const int8_t* B, size_t N,
@@ -121,9 +121,27 @@ void matmul_int8(
         for (size_t j = 0; j < N; ++j) {
             int32_t sum = 0;
             for (size_t k = 0; k < K; ++k) {
-                // Multiply two INT8 values, result fits in INT32
                 int32_t a_val = static_cast<int32_t>(A[i * K + k]);
                 int32_t b_val = static_cast<int32_t>(B[k * N + j]);
+                sum += a_val * b_val;
+            }
+            C[i * N + j] = sum;
+        }
+    }
+}
+
+// Asymmetric INT8 matrix multiplication with zero-point offsets
+void matmul_int8_asymmetric(
+    const int8_t* A, size_t M, size_t K, int32_t zp_A,
+    const int8_t* B, size_t N, int32_t zp_B,
+    int32_t* C
+) {
+    for (size_t i = 0; i < M; ++i) {
+        for (size_t j = 0; j < N; ++j) {
+            int32_t sum = 0;
+            for (size_t k = 0; k < K; ++k) {
+                int32_t a_val = static_cast<int32_t>(A[i * K + k]) - zp_A;
+                int32_t b_val = static_cast<int32_t>(B[k * N + j]) - zp_B;
                 sum += a_val * b_val;
             }
             C[i * N + j] = sum;

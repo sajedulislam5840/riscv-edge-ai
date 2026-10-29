@@ -25,12 +25,18 @@ void bias_add(Tensor<float>& X, const Tensor<float>& bias);
 // Numerically stable with max subtraction trick
 void softmax(Tensor<float>& X);
 
-// INT8 matrix multiplication with 32-bit accumulator
-// A: (M x K), B: (K x N), C: (M x N)
-// Result stored as INT32 to prevent overflow during accumulation
+// Symmetric INT8 matrix multiplication with 32-bit accumulator (Z_A = Z_B = 0)
+// Target kernel for custom RISC-V 4-way SIMD MAC instruction
 void matmul_int8(
     const int8_t* A, size_t M, size_t K,
     const int8_t* B, size_t N,
+    int32_t* C
+);
+
+// Asymmetric INT8 matrix multiplication with zero-point offsets
+void matmul_int8_asymmetric(
+    const int8_t* A, size_t M, size_t K, int32_t zp_A,
+    const int8_t* B, size_t N, int32_t zp_B,
     int32_t* C
 );
 

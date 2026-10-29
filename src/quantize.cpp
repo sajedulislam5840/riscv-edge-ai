@@ -317,7 +317,12 @@ namespace engine
         }
     }
 
-    void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
+    void matmul_int8_fixed_point(
+        const QuantizedTensor &A,
+        const QuantizedTensor &B,
+        QuantizedTensor &C,
+        int32_t q_multiplier,
+        int shift)
     {
         if (A.size() == 0 || B.size() == 0)
         {
@@ -340,11 +345,6 @@ namespace engine
         const int32_t zp_B = B.params().zero_point;
         const int32_t zp_C = C.params().zero_point;
 
-        double real_multiplier = static_cast<double>(A.params().scale * B.params().scale) / static_cast<double>(C.params().scale);
-        int32_t q_multiplier;
-        int shift;
-        quantize_multiplier_and_shift(real_multiplier, q_multiplier, shift);
-
         for (size_t i = 0; i < M; ++i)
         {
             for (size_t j = 0; j < N; ++j)
@@ -359,6 +359,84 @@ namespace engine
 
                 int32_t scaled_acc = multiply_by_quantized_multiplier(acc, q_multiplier, shift);
                 int32_t res = scaled_acc + zp_C;
+                C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
+            }
+        }
+    }
+
+    void matmul_int8_fixed_point(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
+    {
+        double real_multiplier = static_cast<double>(A.params().scale * B.params().scale) / static_cast<double>(C.params().scale);
+        int32_t q_multiplier;
+        int shift;
+        quantize_multiplier_and_shift(real_multiplier, q_multiplier, shift);
+        matmul_int8_fixed_point(A, B, C, q_multiplier, shift);
+    }
+
+    void matmul_int8_fixed_point_fused(
+        const QuantizedTensor &A,
+        const QuantizedTensor &B,
+        const QuantizedTensor &bias,
+        QuantizedTensor &C,
+        int32_t q_multiplier,
+        int shift,
+        bool apply_relu)
+    {
+        if (A.size() == 0 || B.size() == 0)
+        {
+            throw std::invalid_argument("Cannot perform matmul on empty tensor.");
+        }
+        if (A.cols() != B.rows())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_fixed_point_fused: A.cols must match B.rows.");
+        }
+        if (C.rows() != A.rows() || C.cols() != B.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_fixed_point_fused: Output tensor C dimension invalid.");
+        }
+        if (bias.rows() != 1 || bias.cols() != B.cols())
+        {
+            throw std::invalid_argument("Dimension mismatch in matmul_int8_fixed_point_fused: bias dimensions invalid.");
+        }
+
+        const size_t M = A.rows();
+        const size_t K = A.cols();
+        const size_t N = B.cols();
+
+        const int32_t zp_A = A.params().zero_point;
+        const int32_t zp_B = B.params().zero_point;
+        const int32_t zp_C = C.params().zero_point;
+        const int32_t zp_bias = bias.params().zero_point;
+
+        const double bias_mult = static_cast<double>(bias.params().scale) / static_cast<double>(A.params().scale * B.params().scale);
+        int32_t q_bias_mult;
+        int shift_bias;
+        quantize_multiplier_and_shift(bias_mult, q_bias_mult, shift_bias);
+
+        for (size_t i = 0; i < M; ++i)
+        {
+            for (size_t j = 0; j < N; ++j)
+            {
+                int32_t acc = 0;
+                for (size_t k = 0; k < K; ++k)
+                {
+                    int32_t val_A = static_cast<int32_t>(A(i, k)) - zp_A;
+                    int32_t val_B = static_cast<int32_t>(B(k, j)) - zp_B;
+                    acc += val_A * val_B;
+                }
+
+                // Add scaled bias into INT32 accumulator before requantization (Zero FPU)
+                int32_t b_val = static_cast<int32_t>(bias(0, j)) - zp_bias;
+                int32_t scaled_b = multiply_by_quantized_multiplier(b_val, q_bias_mult, shift_bias);
+                acc += scaled_b;
+
+                // Requantize accumulator to output INT8
+                int32_t scaled_acc = multiply_by_quantized_multiplier(acc, q_multiplier, shift);
+                int32_t res = scaled_acc + zp_C;
+                if (apply_relu && res < zp_C)
+                {
+                    res = zp_C;
+                }
                 C(i, j) = static_cast<int8_t>(std::clamp(res, -128, 127));
             }
         }
@@ -470,20 +548,24 @@ namespace engine
         const size_t cols = X.cols();
 
         const float S_x = X.params().scale;
-        const int32_t Z_x = X.params().zero_point;
-        const float S_b = bias.params().scale;
         const int32_t Z_b = bias.params().zero_point;
+        const float S_b = bias.params().scale;
 
-        for (size_t r = 0; r < rows; ++r)
+        // Fixed-point scaling of bias to match X scale: (S_b / S_x)
+        double mult = static_cast<double>(S_b) / static_cast<double>(S_x);
+        int32_t q_mult;
+        int shift;
+        quantize_multiplier_and_shift(mult, q_mult, shift);
+
+        for (size_t c = 0; c < cols; ++c)
         {
-            for (size_t c = 0; c < cols; ++c)
-            {
-                float real_x = (static_cast<float>(X(r, c)) - Z_x) * S_x;
-                float real_b = (static_cast<float>(bias(0, c)) - Z_b) * S_b;
-                float sum = real_x + real_b;
+            int32_t b_val = static_cast<int32_t>(bias(0, c)) - Z_b;
+            int32_t scaled_b = multiply_by_quantized_multiplier(b_val, q_mult, shift);
 
-                int32_t q_res = static_cast<int32_t>(std::round(sum / S_x)) + Z_x;
-                X(r, c) = static_cast<int8_t>(std::clamp(q_res, -128, 127));
+            for (size_t r = 0; r < rows; ++r)
+            {
+                int32_t res = static_cast<int32_t>(X(r, c)) + scaled_b;
+                X(r, c) = static_cast<int8_t>(std::clamp(res, -128, 127));
             }
         }
     }
@@ -790,13 +872,17 @@ namespace engine
 
         uint32_t magic = 0;
         in.read(reinterpret_cast<char *>(&magic), sizeof(magic));
-        if (magic != 0x514E4554)
+        if (!in || magic != 0x514E4554)
         {
             throw std::runtime_error("Invalid file header: not a valid QNET model binary.");
         }
 
         uint32_t num_tensors = 0;
         in.read(reinterpret_cast<char *>(&num_tensors), sizeof(num_tensors));
+        if (!in || num_tensors > 100000)
+        {
+            throw std::runtime_error("Corrupted QNET binary: invalid tensor count.");
+        }
 
         std::vector<QuantizedTensor> result;
         result.reserve(num_tensors);
@@ -813,9 +899,19 @@ namespace engine
             in.read(reinterpret_cast<char *>(&scale), sizeof(scale));
             in.read(reinterpret_cast<char *>(&zp), sizeof(zp));
 
+            if (!in)
+            {
+                throw std::runtime_error("Corrupted QNET binary: unexpected EOF reading tensor header.");
+            }
+
             QuantParams qp = {scale, zp};
             QuantizedTensor t(rows, cols, qp);
-            in.read(reinterpret_cast<char *>(t.data()), t.size() * sizeof(int8_t));
+            std::streamsize expected_bytes = static_cast<std::streamsize>(t.size() * sizeof(int8_t));
+            in.read(reinterpret_cast<char *>(t.data()), expected_bytes);
+            if (in.gcount() != expected_bytes)
+            {
+                throw std::runtime_error("Corrupted QNET binary: truncated tensor payload.");
+            }
             result.push_back(std::move(t));
         }
 
