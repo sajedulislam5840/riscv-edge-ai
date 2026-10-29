@@ -185,20 +185,11 @@ class DigitCanvas {
     const boxW = maxX - minX + 1;
     const boxH = maxY - minY + 1;
 
-    // Scale to fit inside 20x20
+    // Scale to fit inside 20x20 bounding box (standard MNIST ratio)
     const targetSize = 20.0;
     const scale = targetSize / Math.max(boxW, boxH);
     const scaledW = Math.max(1, Math.round(boxW * scale));
     const scaledH = Math.max(1, Math.round(boxH * scale));
-
-    // Crop to temporary canvas
-    if (!this._cropCanvas) {
-      this._cropCanvas = document.createElement('canvas');
-      this._cropCtx = this._cropCanvas.getContext('2d', { willReadFrequently: true });
-    }
-    this._cropCanvas.width = boxW;
-    this._cropCanvas.height = boxH;
-    this._cropCtx.drawImage(this.canvas, minX, minY, boxW, boxH, 0, 0, boxW, boxH);
 
     // Render to 28x28 canvas centered at (14, 14) by Center of Mass
     if (!this._dstCanvas) {
@@ -206,6 +197,8 @@ class DigitCanvas {
       this._dstCanvas.width = 28;
       this._dstCanvas.height = 28;
       this._dstCtx = this._dstCanvas.getContext('2d', { willReadFrequently: true });
+      this._dstCtx.imageSmoothingEnabled = true;
+      this._dstCtx.imageSmoothingQuality = 'high';
     }
     this._dstCtx.fillStyle = '#000000';
     this._dstCtx.fillRect(0, 0, 28, 28);
@@ -213,7 +206,8 @@ class DigitCanvas {
     const dstX = Math.round(14.0 + (minX - cx) * scale);
     const dstY = Math.round(14.0 + (minY - cy) * scale);
 
-    this._dstCtx.drawImage(this._cropCanvas, 0, 0, boxW, boxH, dstX, dstY, scaledW, scaledH);
+    // Direct hardware-accelerated crop + scale in one operation
+    this._dstCtx.drawImage(this.canvas, minX, minY, boxW, boxH, dstX, dstY, scaledW, scaledH);
 
     const dstData = this._dstCtx.getImageData(0, 0, 28, 28).data;
     const tensor = new Float32Array(784);
