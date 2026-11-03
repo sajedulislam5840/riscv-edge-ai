@@ -7,3 +7,6 @@ bin/
 *.pth
 data/
 __pycache__/
+.clinerules
+.cursorrules
+.gemini/
