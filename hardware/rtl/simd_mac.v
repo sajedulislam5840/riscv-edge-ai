@@ -32,23 +32,23 @@ module simd_mac (
     // -------------------------------------------------------------------------
     // 1. Little-Endian Byte Unpacking into 8-bit Signed Operands
     // -------------------------------------------------------------------------
-    wire signed [7:0] a0 = rs1_data[ 7: 0];
-    wire signed [7:0] a1 = rs1_data[15: 8];
-    wire signed [7:0] a2 = rs1_data[23:16];
-    wire signed [7:0] a3 = rs1_data[31:24];
+    wire signed [7:0] a0 = $signed(rs1_data[ 7: 0]);
+    wire signed [7:0] a1 = $signed(rs1_data[15: 8]);
+    wire signed [7:0] a2 = $signed(rs1_data[23:16]);
+    wire signed [7:0] a3 = $signed(rs1_data[31:24]);
 
-    wire signed [7:0] b0 = rs2_data[ 7: 0];
-    wire signed [7:0] b1 = rs2_data[15: 8];
-    wire signed [7:0] b2 = rs2_data[23:16];
-    wire signed [7:0] b3 = rs2_data[31:24];
+    wire signed [7:0] b0 = $signed(rs2_data[ 7: 0]);
+    wire signed [7:0] b1 = $signed(rs2_data[15: 8]);
+    wire signed [7:0] b2 = $signed(rs2_data[23:16]);
+    wire signed [7:0] b3 = $signed(rs2_data[31:24]);
 
     // -------------------------------------------------------------------------
     // 2. Parallel 8x8 Signed Multipliers (Outputs: 16-bit signed products)
     // -------------------------------------------------------------------------
-    wire signed [15:0] prod0 = a0 * b0;
-    wire signed [15:0] prod1 = a1 * b1;
-    wire signed [15:0] prod2 = a2 * b2;
-    wire signed [15:0] prod3 = a3 * b3;
+    wire signed [15:0] prod0 = $signed(rs1_data[ 7: 0]) * $signed(rs2_data[ 7: 0]);
+    wire signed [15:0] prod1 = $signed(rs1_data[15: 8]) * $signed(rs2_data[15: 8]);
+    wire signed [15:0] prod2 = $signed(rs1_data[23:16]) * $signed(rs2_data[23:16]);
+    wire signed [15:0] prod3 = $signed(rs1_data[31:24]) * $signed(rs2_data[31:24]);
 
     // -------------------------------------------------------------------------
     // 3. Balanced 2-Level Adder Reduction Tree
