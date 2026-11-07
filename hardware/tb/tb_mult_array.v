@@ -1,6 +1,7 @@
 // =============================================================================
 // Testbench: tb_mult_array
-// Description: Unit testbench for 4-way 8x8 signed two's complement multiplier array
+// Description: Unit testbench for 4-way 8x8 signed multiplier array AND
+//              2-level balanced adder reduction tree (Plan 03.2 + Plan 03.3)
 // Standard:    Verilog-2001
 // =============================================================================
 
@@ -13,7 +14,9 @@ module tb_mult_array;
     integer     errors;
     integer     test_count;
 
-    // Direct instantiation of 4 signed multipliers matching simd_mac datapath
+    // -------------------------------------------------------------------------
+    // Multiplier Array (Plan 03.2): 4-way 8x8 signed two's complement
+    // -------------------------------------------------------------------------
     wire signed [7:0] a0 = $signed(rs1_data[ 7: 0]);
     wire signed [7:0] a1 = $signed(rs1_data[15: 8]);
     wire signed [7:0] a2 = $signed(rs1_data[23:16]);
@@ -29,7 +32,22 @@ module tb_mult_array;
     wire signed [15:0] prod2 = a2 * b2;
     wire signed [15:0] prod3 = a3 * b3;
 
-    // Check task
+    // -------------------------------------------------------------------------
+    // Balanced Adder Reduction Tree (Plan 03.3): 2-level binary tree
+    //   Level 1: 16-bit + 16-bit -> 17-bit signed intermediate sums
+    //   Level 2: 17-bit + 17-bit -> 18-bit signed final dot product
+    // Bit-growth analysis:
+    //   Products range: [-16256, +16384]  -> fits in signed 16-bit
+    //   Level-1 sums:  [-32512, +32768]   -> fits in signed 17-bit [-65536, 65535]
+    //   Level-2 sum:   [-65024, +65536]   -> fits in signed 18-bit [-131072, 131071]
+    // -------------------------------------------------------------------------
+    wire signed [16:0] sum_01  = prod0 + prod1;  // Level 1a
+    wire signed [16:0] sum_23  = prod2 + prod3;  // Level 1b
+    wire signed [17:0] sum_all = sum_01 + sum_23; // Level 2 (final dot product)
+
+    // -------------------------------------------------------------------------
+    // Task: check_vector - verify individual multiplier products
+    // -------------------------------------------------------------------------
     task check_vector(
         input [31:0] v_rs1,
         input [31:0] v_rs2,
@@ -55,10 +73,35 @@ module tb_mult_array;
         end
     endtask
 
+    // -------------------------------------------------------------------------
+    // Task: check_adder_tree - verify full reduction sum against expected value
+    // -------------------------------------------------------------------------
+    task check_adder_tree(
+        input [31:0] v_rs1,
+        input [31:0] v_rs2,
+        input signed [17:0] exp_sum,
+        input [127:0] test_name
+    );
+        begin
+            rs1_data = v_rs1;
+            rs2_data = v_rs2;
+            #10;
+            test_count = test_count + 1;
+            if (sum_all !== exp_sum) begin
+                $display("[FAIL] Adder Tree - %0s: RS1=%h RS2=%h", test_name, v_rs1, v_rs2);
+                $display("       Expected sum_all=%d, Got sum_all=%d", exp_sum, sum_all);
+                errors = errors + 1;
+            end else begin
+                $display("[PASS] Adder Tree - %0s: sum_all=%d", test_name, sum_all);
+            end
+        end
+    endtask
+
     initial begin
         $display("==================================================");
-        $display("   Running 4-Way 8x8 Multiplier Array Testbench   ");
+        $display(" Running Multiplier Array + Adder Tree Testbench ");
         $display("==================================================");
+        $display("--- Plan 03.2: 4-Way 8x8 Signed Multiplier Tests ---");
 
         errors = 0;
         test_count = 0;
@@ -84,19 +127,41 @@ module tb_mult_array;
         check_vector(32'h00000000, 32'h80808080, 16'sd0, 16'sd0, 16'sd0, 16'sd0, "Zero x MaxNeg");
 
         // 7. Alternating Mixed Signs:
-        // Byte 0: 10 * 20 = 200
-        // Byte 1: -10 * 20 = -200
-        // Byte 2: 50 * -50 = -2500
-        // Byte 3: -1 * -1 = +1
+        // Byte 0: 10 * 20 = 200; Byte 1: -10 * 20 = -200
+        // Byte 2: 50 * -50 = -2500; Byte 3: -1 * -1 = +1
         // rs1: [-1 (0xFF), 50 (0x32), -10 (0xF6), 10 (0x0A)] = 32'hFF32F60A
         // rs2: [-1 (0xFF), -50 (0xCE), 20 (0x14), 20 (0x14)] = 32'hFFCE1414
         check_vector(32'hFF32F60A, 32'hFFCE1414, 16'sd200, -16'sd200, -16'sd2500, 16'sd1, "Mixed Signs");
 
+        $display("");
+        $display("--- Plan 03.3: Balanced Adder Reduction Tree Tests ---");
+
+        // Tree Test A: Maximum positive dot product
+        // 4 * (-128 * -128) = 4 * 16384 = +65536
+        // RS1=0x80808080 (all -128), RS2=0x80808080 (all -128)
+        // 18-bit signed range: [-131072, 131071] -> +65536 fits safely
+        check_adder_tree(32'h80808080, 32'h80808080, 18'sd65536, "MaxPos DotProduct (4*16384=+65536)");
+
+        // Tree Test B: Maximum negative dot product
+        // 4 * (-128 * +127) = 4 * (-16256) = -65024
+        // RS1=0x80808080 (all -128), RS2=0x7F7F7F7F (all +127)
+        check_adder_tree(32'h80808080, 32'h7F7F7F7F, -18'sd65024, "MaxNeg DotProduct (4*-16256=-65024)");
+
+        // Tree Test C: Complete cancellation -> sum = 0
+        // Byte 0: 25 * 40 = +1000; Byte 1: -25 * 40 = -1000
+        // Byte 2: 25 * 20 = +500;  Byte 3: -25 * 20 = -500
+        // RS1 = [25=0x19, -25=0xE7, 25=0x19, -25=0xE7] = 0xE719E719
+        // RS2 = [40=0x28,  40=0x28, 20=0x14,  20=0x14] = 0x14142828
+        check_adder_tree(32'hE719E719, 32'h14142828, 18'sd0, "Cancellation (+1000-1000+500-500=0)");
+
+        // Tree Test D: All zeros -> sum_all = 0
+        check_adder_tree(32'h00000000, 32'h00000000, 18'sd0, "Zero Vector DotProduct");
+
         $display("--------------------------------------------------");
         if (errors == 0) begin
-            $display(">> [SUCCESS] All %0d Multiplier Tests PASSED! <<", test_count);
+            $display(">> [SUCCESS] All %0d Tests PASSED! <<", test_count);
         end else begin
-            $display(">> [FAILURE] %0d / %0d Multiplier Tests FAILED! <<", errors, test_count);
+            $display(">> [FAILURE] %0d / %0d Tests FAILED! <<", errors, test_count);
         end
         $display("==================================================");
         $finish;
