@@ -9,6 +9,8 @@
   // Published numbers come from the generated files, so the page never drifts from the code.
   $("r-fp32").textContent = window.FP32_TEST_ACCURACY.toFixed(2) + "%";
   $("r-int8").textContent = window.QUANT_PARAMS.int8TestAccuracy.toFixed(2) + "%";
+  $("t-int8").textContent = window.QUANT_PARAMS.int8TestAccuracy.toFixed(2) + "%";
+  $("t-fp32").textContent = window.FP32_TEST_ACCURACY.toFixed(2) + "%";
   $("r-agree").textContent = window.QUANT_PARAMS.agreementWithFp32.toFixed(2) + "%";
 
   // ---------------------------------------------------------------- drawing pad

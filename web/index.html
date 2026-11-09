@@ -6,12 +6,13 @@
   <title>riscv-edge-ai: a neural network on 8-bit integers</title>
   <meta name="description"
     content="Draw a digit and watch a neural network classify it twice: with floating-point math, and with 8-bit integers only, as a small RISC-V chip would." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2318212c'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='monospace' font-size='16' fill='%23d08a54'%3E8%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230e1726'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='monospace' font-size='16' fill='%23f5a524'%3E8%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=3" />
+    href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="css/styles.css?v=4" />
+  <meta name="theme-color" content="#0e1726" />
 </head>
 
 <body>
@@ -28,17 +29,60 @@
 
   <main id="top">
 
-    <section class="intro" aria-labelledby="title">
-      <h1 id="title">A neural network that runs on 8-bit integers</h1>
-      <p class="lede">
-        Draw a digit. This page recognises it twice: once with ordinary floating-point math, and
-        once using only 8-bit integers, the way a small microcontroller without a floating-point
-        unit would. The integer version gives exactly the same results as the project's C++ engine,
-        which is what the custom RISC-V hardware is built to speed up.
-      </p>
+    <section class="hero" aria-labelledby="title">
+      <div class="hero-text">
+        <h1 id="title">Four multiplies.<br />One instruction.</h1>
+        <p class="lede">
+          An integer-only neural network for small RISC-V chips, and the custom instruction I designed
+          to speed it up. Draw a digit below and watch both versions run: ordinary floating-point math,
+          and 8-bit integers only, exactly as the project's C++ engine computes them.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#demo">Draw a digit</a>
+          <a class="btn btn-secondary" href="https://github.com/sajedulislam5840/riscv-edge-ai">Read the code</a>
+        </div>
+      </div>
+
+      <figure class="hero-chip">
+        <svg viewBox="0 0 520 284" role="img" aria-label="Animated datapath: four pairs of bytes are multiplied in parallel, summed, and added to a running total">
+          <g class="regs">
+            <rect x="0" y="14" width="44" height="30" rx="5"></rect><text x="22" y="34">a0</text>
+            <rect x="52" y="14" width="44" height="30" rx="5"></rect><text x="74" y="34">b0</text>
+            <rect x="0" y="84" width="44" height="30" rx="5"></rect><text x="22" y="104">a1</text>
+            <rect x="52" y="84" width="44" height="30" rx="5"></rect><text x="74" y="104">b1</text>
+            <rect x="0" y="154" width="44" height="30" rx="5"></rect><text x="22" y="174">a2</text>
+            <rect x="52" y="154" width="44" height="30" rx="5"></rect><text x="74" y="174">b2</text>
+            <rect x="0" y="224" width="44" height="30" rx="5"></rect><text x="22" y="244">a3</text>
+            <rect x="52" y="224" width="44" height="30" rx="5"></rect><text x="74" y="244">b3</text>
+            <rect x="478" y="114" width="42" height="40" rx="6"></rect><text x="499" y="139">rd</text>
+          </g>
+          <g class="wire">
+            <path d="M96 29 H150"></path><path d="M96 99 H150"></path><path d="M96 169 H150"></path><path d="M96 239 H150"></path>
+            <path d="M190 29 C240 29 240 64 290 64"></path><path d="M190 99 C240 99 240 64 290 64"></path>
+            <path d="M190 169 C240 169 240 204 290 204"></path><path d="M190 239 C240 239 240 204 290 204"></path>
+            <path d="M330 64 C370 64 370 134 400 134"></path><path d="M330 204 C370 204 370 134 400 134"></path>
+          </g>
+          <path class="wire wire-acc" d="M440 134 H478"></path>
+          <g class="op">
+            <circle cx="170" cy="29" r="20"></circle><circle cx="170" cy="99" r="20"></circle><circle cx="170" cy="169" r="20"></circle><circle cx="170" cy="239" r="20"></circle>
+            <circle cx="310" cy="64" r="20"></circle><circle cx="310" cy="204" r="20"></circle>
+          </g>
+          <circle class="op op-acc" cx="420" cy="134" r="20"></circle>
+          <g class="sym">
+            <text x="170" y="35">×</text><text x="170" y="105">×</text><text x="170" y="175">×</text><text x="170" y="245">×</text>
+            <text x="310" y="70">+</text><text x="310" y="210">+</text><text x="420" y="140">+</text>
+          </g>
+        </svg>
+        <figcaption class="terminal" aria-label="Output of the project's own test commands">
+          <span class="cmd">bash hardware/scripts/cosim.sh</span>
+          <span class="out">RTL vectors: 25088  mismatches: 0</span>
+          <span class="cmd">./build/mnist_benchmark</span>
+          <span class="out">INT8, integers only   <b id="t-int8">98.21%</b>   FP32 <span id="t-fp32">98.23%</span></span>
+        </figcaption>
+      </figure>
     </section>
 
-    <section class="demo" aria-label="Live demo">
+    <section class="demo" id="demo" aria-label="Live demo">
       <div class="pad">
         <canvas id="pad" width="280" height="280" aria-label="Drawing area: draw a digit from 0 to 9"></canvas>
         <div class="pad-actions">
@@ -189,10 +233,10 @@
       <a href="https://github.com/sajedulislam5840/riscv-edge-ai">github.com/sajedulislam5840/riscv-edge-ai</a></p>
   </footer>
 
-  <script src="js/weights.js?v=3"></script>
-  <script src="js/model_int8.js?v=3"></script>
-  <script src="js/quant_params.js?v=3"></script>
-  <script src="js/int8_engine.js?v=3"></script>
-  <script src="js/app.js?v=3"></script>
+  <script src="js/weights.js?v=4"></script>
+  <script src="js/model_int8.js?v=4"></script>
+  <script src="js/quant_params.js?v=4"></script>
+  <script src="js/int8_engine.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>
