@@ -1,0 +1,5 @@
+# Keep generated model data out of GitHub's language statistics
+web/js/weights.js linguist-generated=true
+web/js/model_int8.js linguist-generated=true
+web/js/quant_params.js linguist-generated=true
+hardware/tb/golden_vectors.hex linguist-generated=true
