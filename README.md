@@ -9,6 +9,10 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 </p>
 
 <p align="center">
+  <a href="https://sajedulislam5840.github.io/riscv-edge-ai/"><img src="docs/assets/web_demo.png" alt="Web demo: a hand-drawn 7 classified by the FP32 and the integer-only network" width="100%"/></a>
+</p>
+
+<p align="center">
   <a href="https://sajedulislam5840.github.io/riscv-edge-ai/"><b>Live demo</b></a> ·
   <a href="#verified-results">Results</a> ·
   <a href="#how-it-fits-together">Architecture</a> ·
@@ -40,7 +44,7 @@ Everything listed as done below can be reproduced with the commands in [Reproduc
 flowchart LR
     A["NumPy training<br/>784-128-10 MLP"] --> B["Symmetric INT8 export<br/>.qbin model"]
     B --> C["C++ integer-only engine<br/>98.21% on 10k test images"]
-    B --> F["Browser demo<br/>JS INT8 inference"]
+    B --> F["Browser demo<br/>same INT8 math, bit-exact"]
     B --> D["Golden vectors from a real<br/>test image: 25,088"]
     D --> E["Verilog simd_mac RTL"]
     E --> G{"CXXRTL co-sim<br/>bit-exact?"}
@@ -199,7 +203,7 @@ bash hardware/scripts/run_sim.sh
 
 ```bash
 python benchmarks/mnist/export_model_and_data.py   # INT8 model, test set, calibration set
-./build/mnist_benchmark                            # FP32 vs INT8 accuracy table
+./build/mnist_benchmark                            # FP32 vs INT8 accuracy table (also writes web/js/quant_params.js)
 ./build/gen_simd_vectors                           # regenerate hardware/tb/golden_vectors.hex
 ```
 
@@ -218,7 +222,7 @@ hardware/rtl/       simd_mac.v (datapath), simd_mac_wrapper.v (custom-0 decoder)
 hardware/tb/        Verilog testbenches, CXXRTL co-sim, golden vectors
 hardware/include/   C header for the custom instruction
 hardware/docs/      microarchitecture spec, synthesis notes
-web/                browser demo (vanilla JS, fixed-point INT8 inference)
+web/                browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
 docs/               quantization spec, benchmark notes, figures
 ```
 

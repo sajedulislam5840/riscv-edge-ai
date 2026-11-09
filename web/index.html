@@ -1,253 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#020408" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>riscv-edge-ai: a neural network on 8-bit integers</title>
   <meta name="description"
-    content="Interactive FP32 vs INT8 quantization profiler for a bare-metal RISC-V neural runtime." />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <title>RISC-V · Bare-Metal Neural Runtime Profiler</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261029_02" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    content="Draw a digit and watch a neural network classify it twice: with floating-point math, and with 8-bit integers only, as a small RISC-V chip would." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2318212c'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='monospace' font-size='16' fill='%23d08a54'%3E8%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="css/styles.css?v=3" />
 </head>
 
 <body>
-
-  <!-- Animated particle background -->
-  <canvas id="bg-canvas" aria-hidden="true"></canvas>
-
-  <header class="telemetry-bar">
-    <div class="system-id">
-      <span class="live-dot" aria-hidden="true"></span>
-      <span class="system-badge">INT8 · MNIST MLP</span>
-      <span style="color:var(--text-muted);letter-spacing:.06em;">INTEGER-ONLY INFERENCE · Q31 REQUANTIZATION</span>
-    </div>
-    <div class="metrics-cluster">
-      <div class="metric-group">
-        <span class="metric-k">ARENA:</span>
-        <span class="metric-v">64.0&nbsp;KB</span>
-      </div>
-      <div class="metric-group">
-        <span class="metric-k">MACs:</span>
-        <span class="metric-v">101,632</span>
-      </div>
-      <div class="metric-group">
-        <span class="metric-k">FP32&nbsp;TEST&nbsp;ACC:</span>
-        <span class="metric-v">98.23%</span>
-      </div>
-    </div>
+  <header class="site-header">
+    <a class="wordmark" href="#top">riscv-edge-ai</a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#precision">Precision</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#results">Results</a>
+      <a href="https://github.com/sajedulislam5840/riscv-edge-ai">Code on GitHub</a>
+    </nav>
   </header>
 
-  <main class="workbench-grid">
+  <main id="top">
 
-    <!-- ── PANEL 1: Input Acquisition ── -->
-    <section class="pane" aria-label="Input acquisition">
-      <div class="pane-header">
-        <span>1. Input Acquisition</span>
-        <span>X ∈ ℝ¹ˣ⁷⁸⁴</span>
+    <section class="intro" aria-labelledby="title">
+      <h1 id="title">A neural network that runs on 8-bit integers</h1>
+      <p class="lede">
+        Draw a digit. This page recognises it twice: once with ordinary floating-point math, and
+        once using only 8-bit integers, the way a small microcontroller without a floating-point
+        unit would. The integer version gives exactly the same results as the project's C++ engine,
+        which is what the custom RISC-V hardware is built to speed up.
+      </p>
+    </section>
+
+    <section class="demo" aria-label="Live demo">
+      <div class="pad">
+        <canvas id="pad" width="280" height="280" aria-label="Drawing area: draw a digit from 0 to 9"></canvas>
+        <div class="pad-actions">
+          <button type="button" id="btn-clear">Clear</button>
+          <button type="button" id="btn-example">Load a test image</button>
+        </div>
+        <p class="hint" id="pad-hint">Draw one digit, large, in the middle of the box.</p>
       </div>
-      <div class="pane-body">
 
-        <div class="canvas-holder">
-          <canvas id="digit-canvas" width="224" height="224"
-            aria-label="Draw a digit here — inference runs in real time"></canvas>
-          <div class="action-row">
-            <button id="btn-clear"  class="action-btn" type="button">⟳ RESET</button>
-            <button id="btn-invert" class="action-btn" type="button">⇄ INVERT</button>
-          </div>
+      <div class="verdict" aria-live="polite">
+        <div class="answer">
+          <span class="answer-digit" id="answer-digit">?</span>
+          <p class="answer-text" id="answer-text">Waiting for a drawing.</p>
         </div>
-
-        <div class="mem-info">
-          <span>BASE: <span class="hl">0x8000_1000</span></span>
-          <span>STRIDE: 28 B · LAYOUT: CONTIGUOUS ROW-MAJOR</span>
-        </div>
-
-        <div class="hex-view" id="hex-inspector" aria-live="off"></div>
-
+        <div class="bars" id="bars" role="img" aria-label="Confidence for each digit"></div>
+        <p class="legend">
+          <span class="legend-item"><span class="key key-fp32"></span>Floating point (32-bit)</span>
+          <span class="legend-item"><span class="key key-int8"></span>Integers only (8-bit)</span>
+        </p>
       </div>
     </section>
 
-    <!-- ── PANEL 2: Datapath Execution ── -->
-    <section class="pane" aria-label="Datapath execution">
-      <div class="pane-header">
-        <span>2. Datapath Execution</span>
-        <span>784 → FC(128)+ReLU → FC(10)+Softmax</span>
-      </div>
-      <div class="pane-body">
+    <section id="how" class="how" aria-labelledby="how-title">
+      <h2 id="how-title">What happens to your drawing</h2>
+      <p class="section-intro">Each step below updates live as you draw.</p>
 
+      <ol class="steps">
+        <li class="step">
+          <h3>The drawing becomes 28 × 28 pixels</h3>
+          <p>
+            The network was trained on MNIST, a set of 70,000 handwritten digits, each 28 pixels
+            square. Your drawing is cropped, scaled and centred the same way.
+          </p>
+          <canvas id="viz-pixels" class="viz viz-pixels" width="28" height="28" aria-label="Your drawing at 28 by 28 pixels"></canvas>
+        </li>
+
+        <li class="step">
+          <h3>Each pixel becomes a signed byte</h3>
+          <p>
+            A pixel's brightness, 0 to 255, is stored as brightness − 128, a number from −128 to 127
+            that fits in 8 bits. Here is the middle row of your image as the chip would hold it:
+          </p>
+          <p class="bytes" id="viz-bytes" aria-label="Middle row of the image as signed bytes"></p>
+        </li>
+
+        <li class="step">
+          <h3>128 neurons multiply and add</h3>
+          <p>
+            Each neuron multiplies all 784 bytes by its own 784 learned weights and adds them up:
+            100,352 multiplications for this layer alone. Integer results are scaled back into
+            8 bits with an integer multiply and shift. Bright squares are neurons that respond to
+            your drawing.
+          </p>
+          <div class="neurons" id="viz-neurons" role="img" aria-label="Activity of the 128 hidden neurons"></div>
+          <p class="readout" id="neuron-readout">Point at a square to see its value.</p>
+        </li>
+
+        <li class="step">
+          <h3>Ten scores, one answer</h3>
+          <p>
+            A second layer turns the 128 neuron values into one score per digit. The highest score
+            wins. These are the 8-bit scores the integer network produced:
+          </p>
+          <div class="scores" id="viz-scores"></div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="precision" class="precision" aria-labelledby="precision-title">
+      <h2 id="precision-title">How few bits can a weight have?</h2>
+      <div class="precision-grid">
         <div>
-          <div class="info-label" style="margin-bottom:8px;">
-            <span>H1 INT8 ACTIVATIONS <span class="hl-cyan">(128 NODES · 16×8)</span></span>
-            <span id="node-telemetry" class="hl-cyan" style="font-family:var(--font-mono);font-size:10px;">HOVER NODE FOR REG DUMP</span>
-          </div>
-          <div id="hidden-activations" class="dense-grid"></div>
+          <p>
+            Storing weights in 8 bits instead of 32 makes the model four times smaller
+            (102 KB instead of 407 KB) and lets a small chip use cheap integer arithmetic.
+            Push it further and the network eventually stops working. Try it on your drawing:
+          </p>
+          <label class="slider-label" for="bits">Weight precision: <output id="bits-out">8 bits</output></label>
+          <input type="range" id="bits" min="2" max="8" step="1" value="8" />
+          <p class="bits-result" id="bits-result"></p>
+          <p class="note">This experiment rounds the weights only and keeps the rest in floating point.</p>
         </div>
-
-        <div style="flex:1;min-height:200px;display:flex;flex-direction:column;gap:6px;">
-          <div class="info-label">
-            <span>LOGIT COMPLIANCE <span class="hl-cyan">FP32 REF</span> vs <span class="hl-green">INT8 FIXED-POINT</span></span>
-          </div>
-          <div style="flex:1;position:relative;">
-            <canvas id="logit-chart"></canvas>
-          </div>
-        </div>
-
+        <figure class="bit-chart">
+          <figcaption>Accuracy on the 10,000 MNIST test images</figcaption>
+          <div id="bit-chart" class="bit-rows"></div>
+        </figure>
       </div>
     </section>
 
-    <!-- ── PANEL 3: Quantization Telemetry ── -->
-    <section class="pane" aria-label="Quantization telemetry">
-      <div class="pane-header">
-        <span>3. Quantization Telemetry</span>
-        <span>Q31 FIXED-POINT</span>
+    <section id="hardware" class="hardware" aria-labelledby="hardware-title">
+      <h2 id="hardware-title">The hardware: four multiplications per instruction</h2>
+      <p class="section-intro">
+        Almost all the work in step 3 is multiply-and-add. A plain 32-bit RISC-V core multiplies one
+        pair of numbers per instruction, but four 8-bit values fit in one 32-bit register. So I
+        designed a unit, in Verilog, that multiplies four pairs at once and adds them to a running
+        total in a single instruction, using an opcode RISC-V reserves for custom extensions.
+      </p>
+      <div class="datapath-scroll">
+        <img class="datapath" src="assets/simd_mac_datapath.svg" width="960" height="440"
+          alt="Datapath: four pairs of 8-bit inputs are multiplied in parallel, summed by an adder tree, and added to a 32-bit accumulator." />
       </div>
-      <div class="pane-body">
-
-        <!-- Sliders -->
-        <div class="field-row">
-          <div class="field-label">
-            <span>SCALE FACTOR (S)</span>
-            <span id="scale-val">0.00784</span>
-          </div>
-          <input type="range" id="param-scale" min="0.001" max="0.030" step="0.0005"
-            value="0.00784" aria-label="Scale factor" />
+      <dl class="facts">
+        <div>
+          <dt>Verified</dt>
+          <dd>25,088 test instructions from a real MNIST image, 0 mismatches between the Verilog and the software model</dd>
         </div>
-
-        <div class="field-row">
-          <div class="field-label">
-            <span>ZERO-POINT (Z)</span>
-            <span id="zp-val">0</span>
-          </div>
-          <input type="range" id="param-zp" min="-128" max="127" step="1"
-            value="0" aria-label="Zero point" />
+        <div>
+          <dt>Size on an FPGA</dt>
+          <dd>4 DSP blocks, 33 lookup tables and 34 flip-flops on a Xilinx 7-series chip</dd>
         </div>
-
-        <!-- Metrics table -->
-        <table class="perf-table" aria-label="Quantization error metrics">
-          <tr>
-            <td>SQNR (Signal-to-Quant Noise)</td>
-            <td id="metric-sqnr">44.1 dB</td>
-          </tr>
-          <tr>
-            <td>RMSE (Output Logit Gap)</td>
-            <td id="metric-rmse">0.0142</td>
-          </tr>
-          <tr>
-            <td>MAX L∞ DRIFT</td>
-            <td id="metric-linf">0.0520</td>
-          </tr>
-        </table>
-
-        <!-- Prediction bars -->
-        <div class="info-label">
-          <span>CLASSIFICATION LOGITS</span>
-          <span id="top-pred-label" class="hl-green" style="font-family:var(--font-mono);font-size:10px;"></span>
+        <div>
+          <dt>Still to measure</dt>
+          <dd>The speed-up in clock cycles, by running the network on a RISC-V simulator with and without the new instruction</dd>
         </div>
-        <div id="prob-container" class="prediction-stack"></div>
-
-      </div>
+      </dl>
     </section>
 
+    <section id="results" class="results" aria-labelledby="results-title">
+      <h2 id="results-title">Results so far</h2>
+      <table>
+        <caption>MNIST test set, 10,000 images. Activation scales were calibrated on training images only.</caption>
+        <thead>
+          <tr><th scope="col">Version</th><th scope="col">Accuracy</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Floating point (32-bit)</td><td class="num" id="r-fp32">98.23%</td></tr>
+          <tr><td>8-bit weights, floating-point activations</td><td class="num">98.23%</td></tr>
+          <tr class="highlight"><td>Integers only, end to end</td><td class="num" id="r-int8">98.21%</td></tr>
+        </tbody>
+      </table>
+      <p>
+        The two versions pick the same digit on <span id="r-agree">99.84%</span> of test images.
+        The integer pipeline in this page reproduces the C++ engine byte for byte on all 10,000 of them.
+      </p>
+
+      <h3 class="status-title">Project status</h3>
+      <ul class="status">
+        <li><span class="tag tag-done">Done</span>INT8 engine, calibration and test-set evaluation</li>
+        <li><span class="tag tag-done">Done</span>Four-way multiply-accumulate unit in Verilog, synthesised and verified</li>
+        <li><span class="tag tag-next">Next</span>Cycle counts on a RISC-V simulator, with and without the custom instruction</li>
+        <li><span class="tag tag-later">Later</span>The unit attached to a real RISC-V core (PicoRV32), and a short technical report</li>
+      </ul>
+    </section>
   </main>
 
-  <script src="js/weights.js?v=20261029_02"></script>
-  <script src="js/network.js?v=20261029_02"></script>
-  <script src="js/quantization.js?v=20261029_02"></script>
+  <footer class="site-footer">
+    <p>By Sajedul Islam. Source code, tests and hardware:
+      <a href="https://github.com/sajedulislam5840/riscv-edge-ai">github.com/sajedulislam5840/riscv-edge-ai</a></p>
+  </footer>
 
-  <!-- Animated particle background -->
-  <script>
-    (function () {
-      const canvas = document.getElementById('bg-canvas');
-      const ctx = canvas.getContext('2d');
-      let W, H, nodes, rafId;
-
-      const COLORS = ['#38bdf8','#06b6d4','#4ade80','#a78bfa','#fbbf24'];
-      const N = 55;
-
-      function resize() {
-        W = canvas.width  = window.innerWidth;
-        H = canvas.height = window.innerHeight;
-      }
-
-      function mkNode() {
-        return {
-          x: Math.random() * W,
-          y: Math.random() * H,
-          vx: (Math.random() - 0.5) * 0.35,
-          vy: (Math.random() - 0.5) * 0.35,
-          r: 1.2 + Math.random() * 2.2,
-          color: COLORS[Math.floor(Math.random() * COLORS.length)],
-          pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: 0.012 + Math.random() * 0.018
-        };
-      }
-
-      function init() {
-        resize();
-        nodes = Array.from({length: N}, mkNode);
-      }
-
-      function draw() {
-        ctx.clearRect(0, 0, W, H);
-
-        // Draw connecting lines between close nodes
-        for (let i = 0; i < N; i++) {
-          for (let j = i + 1; j < N; j++) {
-            const dx = nodes[i].x - nodes[j].x;
-            const dy = nodes[i].y - nodes[j].y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < 160) {
-              const alpha = (1 - dist / 160) * 0.25;
-              ctx.beginPath();
-              ctx.moveTo(nodes[i].x, nodes[i].y);
-              ctx.lineTo(nodes[j].x, nodes[j].y);
-              ctx.strokeStyle = `rgba(56,189,248,${alpha})`;
-              ctx.lineWidth = 0.6;
-              ctx.stroke();
-            }
-          }
-        }
-
-        // Draw nodes
-        for (const n of nodes) {
-          n.pulse += n.pulseSpeed;
-          const glowR = n.r + Math.sin(n.pulse) * 1.2;
-
-          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR * 5);
-          grad.addColorStop(0,   n.color + 'dd');
-          grad.addColorStop(0.4, n.color + '55');
-          grad.addColorStop(1,   n.color + '00');
-          ctx.beginPath();
-          ctx.arc(n.x, n.y, glowR * 5, 0, Math.PI * 2);
-          ctx.fillStyle = grad;
-          ctx.fill();
-
-          ctx.beginPath();
-          ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
-          ctx.fillStyle = n.color;
-          ctx.fill();
-
-          // Move
-          n.x += n.vx;
-          n.y += n.vy;
-          if (n.x < -20) n.x = W + 20;
-          if (n.x > W + 20) n.x = -20;
-          if (n.y < -20) n.y = H + 20;
-          if (n.y > H + 20) n.y = -20;
-        }
-
-        rafId = requestAnimationFrame(draw);
-      }
-
-      window.addEventListener('resize', () => { resize(); });
-      init();
-      draw();
-    })();
-  </script>
-
+  <script src="js/weights.js?v=3"></script>
+  <script src="js/model_int8.js?v=3"></script>
+  <script src="js/quant_params.js?v=3"></script>
+  <script src="js/int8_engine.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>
