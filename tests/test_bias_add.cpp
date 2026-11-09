@@ -1,4 +1,4 @@
-#include "engine/tensor.hpp"
+﻿#include "engine/tensor.hpp"
 #include "engine/ops.hpp"
 #include <iostream>
 #include <cassert>
@@ -67,7 +67,7 @@ void test_bias_add_dimension_mismatch() {
 }
 
 int main() {
-    std::cout << "[TEST SUITE] Running Day 6 Bias Addition Tests...\n";
+    std::cout << "[TEST SUITE] Running Bias Addition Tests...\n";
     test_bias_add_row_vector();
     test_bias_add_broadcast();
     test_bias_add_dimension_mismatch();

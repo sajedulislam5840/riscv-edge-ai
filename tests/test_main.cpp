@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <cassert>
 #include "engine/tensor.hpp"
 
@@ -28,9 +28,9 @@ void test_row_major_indexing() {
 }
 
 int main() {
-    std::cout << "[TEST SUITE] Running Day 2 Tensor Tests...\n";
+    std::cout << "[TEST SUITE] Running Tensor Tests...\n";
     test_tensor_allocation();
     test_row_major_indexing();
-    std::cout << "[TEST SUITE] All Day 2 tests passed successfully!\n";
+    std::cout << "[TEST SUITE] All tests passed successfully!\n";
     return 0;
 }

@@ -1,4 +1,4 @@
-#include "engine/tensor.hpp"
+﻿#include "engine/tensor.hpp"
 #include "engine/ops.hpp"
 #include <iostream>
 #include <cassert>
@@ -42,7 +42,7 @@ void test_in_place_relu() {
 }
 
 int main() {
-    std::cout << "[TEST SUITE] Running Day 5 ReLU Activation Tests...\n";
+    std::cout << "[TEST SUITE] Running ReLU Activation Tests...\n";
     test_out_of_place_relu();
     test_in_place_relu();
     std::cout << "[TEST SUITE] All ReLU tests passed successfully!\n";

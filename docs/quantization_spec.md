@@ -99,7 +99,6 @@ inference graph. This saves one full activation-tensor pass per layer.
 | Accumulator (INT32)          | Exact for K<=65535 and |q|<=127            |
 | Requantization rounding      | <= 1 output LSB                            |
 | BatchNorm fold (FP32 precomp)| < 1e-5 (machine epsilon)                   |
-| Total end-to-end L_inf       | <= 0.0782 (empirically measured, MNIST)    |
 
 ---
 

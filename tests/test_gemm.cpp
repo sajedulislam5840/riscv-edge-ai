@@ -1,4 +1,4 @@
-#include "engine/tensor.hpp"
+﻿#include "engine/tensor.hpp"
 #include "engine/ops.hpp"
 #include <iostream>
 #include <cmath>
@@ -64,7 +64,7 @@ void test_dimension_mismatch() {
 }
 
 int main() {
-    std::cout << "--- Running Day 3 & 4 GEMM Verification Suite ---\n";
+    std::cout << "--- Running GEMM Verification Suite ---\n";
     test_identity_multiplication();
     test_rectangular_gemm();
     test_dimension_mismatch();

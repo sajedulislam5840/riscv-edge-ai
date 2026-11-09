@@ -1,4 +1,4 @@
-#include "engine/tensor.hpp"
+﻿#include "engine/tensor.hpp"
 #include "engine/ops.hpp"
 #include <iostream>
 #include <cassert>
@@ -90,7 +90,7 @@ void test_softmax_uniform_distribution() {
 }
 
 int main() {
-    std::cout << "[TEST SUITE] Running Day 6 Softmax Activation Tests...\n";
+    std::cout << "[TEST SUITE] Running Softmax Activation Tests...\n";
     test_softmax_single_row();
     test_softmax_multi_row();
     test_softmax_numerical_stability();
