@@ -2,8 +2,7 @@
 #define ENGINE_QUANTIZED_TENSOR_HPP
 
 // Header redirect: QuantizedTensor and QuantizedTensorView definitions
-// have been consolidated into engine/quantize.hpp as part of the Phase 02
-// integer quantization engine.
+// live in engine/quantize.hpp. This header is kept for compatibility.
 #include "engine/quantize.hpp"
 
 #endif // ENGINE_QUANTIZED_TENSOR_HPP

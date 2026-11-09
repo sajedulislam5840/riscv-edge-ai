@@ -1,6 +1,6 @@
 // =============================================================================
 // Testbench: tb_simd_mac
-// Description: Comprehensive self-checking testbench for simd_mac module
+// Description: Self-checking testbench for simd_mac module
 //              Covers reset, arithmetic corners, clr_acc modes, chained accum,
 //              overflow detection. VCD waveform dump included.
 // Standard:    Verilog-2001

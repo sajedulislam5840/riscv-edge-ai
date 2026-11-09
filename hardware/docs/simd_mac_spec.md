@@ -140,8 +140,8 @@ The module interfaces to the CPU pipeline as an R-type instruction in the standa
 - **Throughput:** 1 operation / clock cycle (fully pipelined, Initiation Interval = 1).
 - **Critical Path:**
   $T_{\text{comb}} = T_{\text{slice}} + T_{8\times8\text{-mult}} + 2 \times T_{\text{adder}} + T_{\text{acc32}} + T_{\text{setup}}$.
-  Easily meets 100 MHz timing constraints on modern 28nm/40nm ASIC and 50–80 MHz on Xilinx 7-series FPGAs.
+  Timing has not been measured yet; a place-and-route run (nextpnr / Vivado) is needed for an Fmax figure.
 
 ---
 
-*Specification Version: 1.0 — Approved for Phase 03 RTL Implementation*
+*Specification version 1.0*

@@ -1,7 +1,7 @@
 // =============================================================================
 // Testbench: tb_mult_array
 // Description: Unit testbench for 4-way 8x8 signed multiplier array AND
-//              2-level balanced adder reduction tree (Plan 03.2 + Plan 03.3)
+//              2-level balanced adder reduction tree
 // Standard:    Verilog-2001
 // =============================================================================
 
@@ -15,7 +15,7 @@ module tb_mult_array;
     integer     test_count;
 
     // -------------------------------------------------------------------------
-    // Multiplier Array (Plan 03.2): 4-way 8x8 signed two's complement
+    // Multiplier Array: 4-way 8x8 signed two's complement
     // -------------------------------------------------------------------------
     wire signed [7:0] a0 = $signed(rs1_data[ 7: 0]);
     wire signed [7:0] a1 = $signed(rs1_data[15: 8]);
@@ -33,7 +33,7 @@ module tb_mult_array;
     wire signed [15:0] prod3 = a3 * b3;
 
     // -------------------------------------------------------------------------
-    // Balanced Adder Reduction Tree (Plan 03.3): 2-level binary tree
+    // Balanced Adder Reduction Tree: 2-level binary tree
     //   Level 1: 16-bit + 16-bit -> 17-bit signed intermediate sums
     //   Level 2: 17-bit + 17-bit -> 18-bit signed final dot product
     // Bit-growth analysis:
@@ -101,7 +101,7 @@ module tb_mult_array;
         $display("==================================================");
         $display(" Running Multiplier Array + Adder Tree Testbench ");
         $display("==================================================");
-        $display("--- Plan 03.2: 4-Way 8x8 Signed Multiplier Tests ---");
+        $display("--- 4-Way 8x8 Signed Multiplier Tests ---");
 
         errors = 0;
         test_count = 0;
@@ -134,7 +134,7 @@ module tb_mult_array;
         check_vector(32'hFF32F60A, 32'hFFCE1414, 16'sd200, -16'sd200, -16'sd2500, 16'sd1, "Mixed Signs");
 
         $display("");
-        $display("--- Plan 03.3: Balanced Adder Reduction Tree Tests ---");
+        $display("--- Balanced Adder Reduction Tree Tests ---");
 
         // Tree Test A: Maximum positive dot product
         // 4 * (-128 * -128) = 4 * 16384 = +65536

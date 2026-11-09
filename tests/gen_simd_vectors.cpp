@@ -28,7 +28,7 @@
 namespace fs = std::filesystem;
 
 // ---------------------------------------------------------------------------
-// QBIN model structure (matches Phase 02 export_weights.py format)
+// QBIN model structure (format written by benchmarks/mnist/train_and_export.py)
 // ---------------------------------------------------------------------------
 struct QbinModel {
     char     magic[4];    // "TENQ"

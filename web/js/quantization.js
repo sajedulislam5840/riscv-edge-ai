@@ -314,9 +314,6 @@ document.addEventListener("DOMContentLoaded", () => {
     tween(document.getElementById("metric-rmse"),  rmse,   v => v.toFixed(4));
     tween(document.getElementById("metric-linf"),  maxErr, v => v.toFixed(4));
 
-    // Estimated cycles (simple heuristic for demo)
-    const cyc = Math.round((784*128 + 128*10) * (1 + currentScale / 0.030 * 0.3));
-    tween(document.getElementById("metric-cycles"), cyc, v => v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ","));
 
     // ── Activation grid heatmap ───────────────────────────────────
     let maxAct = 0.001;

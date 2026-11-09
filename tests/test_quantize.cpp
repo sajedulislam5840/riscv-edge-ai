@@ -174,7 +174,7 @@ void test_edge_cases()
 int main()
 {
     std::cout << "====================================================\n";
-    std::cout << "     Running Comprehensive Quantization Tests       \n";
+    std::cout << "     Running Quantization Tests                    \n";
     std::cout << "====================================================\n";
 
     test_quant_param_calculation();

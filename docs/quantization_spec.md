@@ -1,4 +1,4 @@
-﻿# Quantization Specification: INT8 Affine & Per-Channel Schemes
+# Quantization Specification: INT8 Affine & Per-Channel Schemes
 
 ## 1. Affine (Asymmetric) Quantization
 

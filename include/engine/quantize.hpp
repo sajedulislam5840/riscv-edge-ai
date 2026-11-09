@@ -50,7 +50,7 @@ namespace engine
     void quantize_multiplier_and_shift(double double_multiplier, int32_t &quantized_multiplier, int &shift);
     int32_t multiply_by_quantized_multiplier(int32_t x, int32_t quantized_multiplier, int shift);
 
-    // Commit 22: Static Arena Allocator for Bare-Metal Memory Planning
+    // Static Arena Allocator for Bare-Metal Memory Planning
     class ArenaAllocator
     {
     public:

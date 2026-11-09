@@ -1,4 +1,4 @@
-﻿import numpy as np
+import numpy as np
 import base64
 import struct
 import os

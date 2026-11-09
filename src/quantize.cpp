@@ -703,7 +703,7 @@ namespace engine
         }
     }
 
-    // Commit 19: Quantized Element-Wise Addition (Integer-only)
+    // Quantized Element-Wise Addition (Integer-only)
     void add_int8(const QuantizedTensor &A, const QuantizedTensor &B, QuantizedTensor &C)
     {
         if (A.rows() != B.rows() || A.cols() != B.cols() ||
@@ -744,7 +744,7 @@ namespace engine
         }
     }
 
-    // Commit 20: Quantized 2D Max Pooling
+    // Quantized 2D Max Pooling
     void maxpool2d_int8(
         const QuantizedTensor &input,
         QuantizedTensor &output,
@@ -784,7 +784,7 @@ namespace engine
         }
     }
 
-    // Commit 20: Quantized 2D Average Pooling
+    // Quantized 2D Average Pooling
     void avgpool2d_int8(
         const QuantizedTensor &input,
         QuantizedTensor &output,
@@ -831,7 +831,7 @@ namespace engine
         }
     }
 
-    // Commit 21: Model Parameter Serialization / Deserialization
+    // Model Parameter Serialization / Deserialization
     void save_quantized_model(const std::string &filepath, const std::vector<QuantizedTensor> &tensors)
     {
         std::ofstream out(filepath, std::ios::binary);

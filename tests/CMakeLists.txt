@@ -3,17 +3,17 @@ set(ENGINE_SOURCES
     ${CMAKE_SOURCE_DIR}/src/quantize.cpp
 )
 
-# ── Phase 01: FP32 baseline tests ───────────────────────────────────────────
+# ── FP32 reference kernels ───────────────────────────────────────────
 add_executable(test_tensor    test_main.cpp    ${ENGINE_SOURCES})
 add_executable(test_gemm      test_gemm.cpp    ${ENGINE_SOURCES})
 add_executable(test_relu      test_relu.cpp    ${ENGINE_SOURCES})
 add_executable(test_bias_add  test_bias_add.cpp ${ENGINE_SOURCES})
 add_executable(test_softmax   test_softmax.cpp  ${ENGINE_SOURCES})
 
-# ── Phase 02: INT8 quantization tests ───────────────────────────────────────
+# ── INT8 quantization ───────────────────────────────────────
 add_executable(test_quantize  test_quantize.cpp ${ENGINE_SOURCES})
 
-# ── Phase 02: Accumulator / arena stress battery ─────────────────────────────
+# ── Accumulator overflow and arena stress tests ─────────────────────────────
 add_executable(test_stress    test_stress.cpp   ${ENGINE_SOURCES})
 
 # Register all tests with ctest

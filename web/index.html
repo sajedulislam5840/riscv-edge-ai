@@ -23,14 +23,10 @@
   <header class="telemetry-bar">
     <div class="system-id">
       <span class="live-dot" aria-hidden="true"></span>
-      <span class="system-badge">RV32I · INT8 (MNIST 98.2%)</span>
-      <span style="color:var(--text-muted);letter-spacing:.06em;">RUNTIME: BARE-METAL · NO-FPU · FIXED-POINT Q31</span>
+      <span class="system-badge">INT8 · MNIST MLP</span>
+      <span style="color:var(--text-muted);letter-spacing:.06em;">INTEGER-ONLY INFERENCE · Q31 REQUANTIZATION</span>
     </div>
     <div class="metrics-cluster">
-      <div class="metric-group">
-        <span class="metric-k">SRAM&nbsp;PEAK:</span>
-        <span class="metric-v">924&nbsp;B</span>
-      </div>
       <div class="metric-group">
         <span class="metric-k">ARENA:</span>
         <span class="metric-v">64.0&nbsp;KB</span>
@@ -40,12 +36,8 @@
         <span class="metric-v">101,632</span>
       </div>
       <div class="metric-group">
-        <span class="metric-k">PARITY:</span>
-        <span class="metric-v" id="live-parity">98.2%</span>
-      </div>
-      <div class="metric-group">
-        <span class="metric-k">CYCLES&nbsp;EST:</span>
-        <span class="metric-v" id="metric-cycles" style="color:var(--neon-amber);text-shadow:0 0 8px rgba(251,191,36,.45);">114,280</span>
+        <span class="metric-k">FP32&nbsp;TEST&nbsp;ACC:</span>
+        <span class="metric-v">98.23%</span>
       </div>
     </div>
   </header>

@@ -9,7 +9,7 @@ int main()
 {
     std::cout << "===============================================================\n";
     std::cout << " Bare-Metal Neural Network Inference Engine for RISC-V\n";
-    std::cout << " Phase 02 Demo: FP32 Baseline vs. Quantized INT8 Inference\n";
+    std::cout << " Demo: FP32 baseline vs. quantized INT8 inference (4-8-3 MLP)\n";
     std::cout << "===============================================================\n\n";
 
     // -------------------------------------------------------------------------
