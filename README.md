@@ -25,7 +25,7 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | FP32 reference kernels (GEMM, ReLU, bias, softmax) | Done, unit tested |
 | INT8 quantization library (affine, per-channel, Q31 requantization, BN folding, pooling, `.qbin` format) | Done, unit tested on host |
 | SIMD MAC RTL (`hardware/rtl/simd_mac.v`) + `custom-0` decoder wrapper | Done, synthesized and verified against golden vectors |
-| Real MNIST test-set evaluation of the INT8 pipeline | In progress |
+| INT8 evaluation on the real MNIST test set (calibrated activations) | Done: 98.21% INT8 vs 98.23% FP32 |
 | Bare-metal RV32IM firmware + cycle counts on Spike | In progress |
 | Integration of the MAC into a RISC-V core (PicoRV32) | Planned |
 | Technical report | Planned |
@@ -38,10 +38,10 @@ Everything listed as done below can be reproduced with the commands in [Reproduc
 
 ```mermaid
 flowchart LR
-    A["PyTorch training<br/>784-128-10 MLP"] --> B["Export and INT8 quantization<br/>.qbin model"]
-    B --> C["C++ fixed-point runtime<br/>host reference"]
+    A["NumPy training<br/>784-128-10 MLP"] --> B["Symmetric INT8 export<br/>.qbin model"]
+    B --> C["C++ integer-only engine<br/>98.21% on 10k test images"]
     B --> F["Browser demo<br/>JS INT8 inference"]
-    B --> D["Golden-vector generator<br/>25,088 vectors"]
+    B --> D["Golden vectors from a real<br/>test image: 25,088"]
     D --> E["Verilog simd_mac RTL"]
     E --> G{"CXXRTL co-sim<br/>bit-exact?"}
     D --> G
@@ -80,7 +80,7 @@ in one clock cycle: four 8x8 signed multipliers, a two-level adder tree, a 32-bi
 
 Fmax has not been measured yet. That needs a place-and-route run (nextpnr / Vivado), which is on the to-do list.
 
-**RTL verification:** `tests/gen_simd_vectors.cpp` pairs the trained first-layer weights of the MNIST network with a synthetic activation pattern and generates **25,088 test vectors**: every 4-element chunk of the 128 first-layer dot products (784 inputs each, so 196 chunks per neuron), with the accumulator chained from chunk to chunk. The Verilog RTL, compiled to C++ with Yosys CXXRTL, matches the software golden model on **all 25,088 vectors (0 mismatches)**.
+**RTL verification:** `tests/gen_simd_vectors.cpp` takes the INT8 first-layer weights and a real MNIST test image and generates **25,088 test vectors**, one per instruction the firmware would issue: 128 neurons x 196 four-byte chunks, with the accumulator chained from chunk to chunk. It also checks, for every neuron, that the MAC's raw-byte result plus the folded zero-point term equals the engine's layer accumulator. The Verilog RTL, compiled to C++ with Yosys CXXRTL, matches on **all 25,088 vectors (0 mismatches)**. As a sanity check of the check itself, flipping one adder in the RTL produces 24,444 mismatches.
 
 **ISA encoding** (R-type, opcode `0x0B` / `custom-0`):
 
@@ -115,8 +115,18 @@ asm volatile(".insn r 0x0B, 0, 1, %0, %1, %2" : "=r"(acc) : "r"(a), "r"(b));
 
 - 7 test suites (FP32 kernels, quantization, stress/overflow cases) pass with `ctest`.
 - INT8 weights take 4x less memory than FP32 (101.6 KB vs 406.4 KB for the 784-128-10 MLP).
-- The trained FP32 model reaches 98.23% on the 10,000-image MNIST test set (reported by `benchmarks/mnist/train_and_export.py`).
-- **INT8 accuracy on the real test set: pending.** The current benchmark harness feeds synthetic inputs and uses hand-set activation scales, so its numbers are not a meaningful accuracy measure. It is being replaced with a real test-set evaluation that uses calibrated scales.
+**MNIST test set, 10,000 images** (`benchmarks/mnist/run_benchmark.cpp`). Activation scales are calibrated on 2,000 training images; the test set is only used for the final numbers.
+
+| Configuration | Accuracy |
+|---|---|
+| FP32 reference | 98.23% |
+| INT8 weights, FP32 activations | 98.23% |
+| **INT8 end to end, integer-only inference** (min/max calibration) | **98.21%** |
+| INT8 end to end, 99.99th-percentile clipping of the hidden layer | 98.26% |
+
+INT8 and FP32 predict the same class on 99.84% of test images (9,984 of 10,000). The INT8 result was cross-checked with an independent NumPy implementation of the same integer pipeline, which also gives 98.21%. Min/max calibration was chosen as the main configuration before looking at test results; the percentile row is shown for comparison only.
+
+Weights are quantized symmetrically (zero point 0, per tensor), which is what the MAC unit assumes. An asymmetric export of the same weights reaches 98.20%, so symmetric quantization costs nothing here.
 
 Speed numbers will be reported as RISC-V cycle counts (Spike, then RTL simulation), not as x86 host timings. Host timings say nothing about the target hardware.
 
@@ -132,7 +142,7 @@ One quantized dense layer, as the runtime computes it:
 flowchart TD
     X["INT8 input activations"] --> M["INT32 accumulate<br/>sum of (x - Z_x) * w"]
     W["INT8 weights, Z_w = 0"] --> M
-    M --> Bi["+ INT32 bias"]
+    M --> Bi["+ bias, rescaled into<br/>the INT32 accumulator"]
     Bi --> R["Requantize<br/>Q31 multiply M0, rounding shift"]
     R --> Z["+ output zero point, clamp to -128..127"]
     Z --> A["ReLU"]
@@ -140,6 +150,8 @@ flowchart TD
     M -.->|"this inner loop is what simd_mac accelerates"| SM(["simd_mac: 4 MACs per instruction"])
 ```
 
+
+**How the MAC fits the quantized math.** The layer needs `sum((q_x - Z_x) * w)`, but the MAC multiplies raw signed bytes. With symmetric weights this splits into `sum(q_x * w) - Z_x * sum(w)`: the first term is exactly what the instruction computes, and the second is a constant per output neuron that is folded into the bias offline. The vector generator checks this identity for every neuron.
 
 **Why a stateless R-type instruction (and its limitation).** The accumulate form `simd_mac` reads three registers: `rs1`, `rs2` and the old value of `rd`. Most small RISC-V cores, including PicoRV32's PCPI coprocessor port, only provide two source operands. For core integration I plan to move the accumulator inside the unit (`clear` / `accumulate` / `read` instructions), which needs only two read ports. I'll document this decision in `hardware/docs/simd_mac_spec.md` when I make the change.
 
@@ -183,7 +195,15 @@ bash hardware/scripts/synth.sh
 bash hardware/scripts/run_sim.sh
 ```
 
-To retrain the model and regenerate the weights: `python3 benchmarks/mnist/train_and_export.py` (needs PyTorch).
+**MNIST evaluation** (needs Python with NumPy, and `mnist.npz` in the repo root, from https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz):
+
+```bash
+python benchmarks/mnist/export_model_and_data.py   # INT8 model, test set, calibration set
+./build/mnist_benchmark                            # FP32 vs INT8 accuracy table
+./build/gen_simd_vectors                           # regenerate hardware/tb/golden_vectors.hex
+```
+
+To retrain from scratch: `python benchmarks/mnist/train_and_export.py` (NumPy only), then run the export again.
 
 ---
 
@@ -212,7 +232,7 @@ gantt
     dateFormat YYYY-MM-DD
     axisFormat %d %b
     section Software
-    Real MNIST eval and calibration :a1, 2026-11-09, 3d
+    Real MNIST eval and calibration :done, a1, 2026-11-09, 1d
     Bare-metal RV32IM on Spike      :a2, after a1, 4d
     section Hardware
     MAC inside PicoRV32, RTL sim    :a3, after a2, 5d
@@ -220,7 +240,7 @@ gantt
     Technical report                :a4, after a3, 3d
 ```
 
-1. Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.
+1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
 2. Freestanding C firmware for RV32IM (no heap, no exceptions, no standard library) running on Spike, with `rdcycle` measurements for three versions of the same GEMM: scalar, SIMD dot-product, and SIMD with an internal accumulator.
 3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Report area and Fmax with and without the unit.
 4. Short technical report.

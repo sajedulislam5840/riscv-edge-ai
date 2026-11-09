@@ -1,180 +1,219 @@
-#include "engine/tensor.hpp"
+// MNIST evaluation: FP32 reference vs. the integer-only INT8 engine.
+//
+// Reads the files written by benchmarks/mnist/export_model_and_data.py:
+//   benchmarks/mnist/results/mnist_model.qbin  INT8 weights (symmetric, zero point 0)
+//   benchmarks/mnist/data/fp32_weights.bin     the same weights in FP32
+//   benchmarks/mnist/data/mnist_test.bin       10,000 test images + labels
+//   benchmarks/mnist/data/mnist_calib.bin      2,000 training images for calibration
+//
+// Activation scales are calibrated on the training images only. The test set is used
+// for nothing except the final accuracy numbers.
+//
+// Run from the repo root:  ./build/mnist_benchmark [model.qbin]
+
 #include "engine/ops.hpp"
 #include "engine/quantize.hpp"
-#include <iostream>
+#include "engine/tensor.hpp"
+
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
 #include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <string>
 #include <vector>
-#include <chrono>
-#include <cmath>
-#include <iomanip>
-#include <random>
 
-int main() {
-    std::cout << "===============================================================\n";
-    std::cout << "    MNIST Benchmark: FP32 Baseline vs. INT8 Fixed-Point Engine \n";
-    std::cout << "===============================================================\n\n";
+namespace {
 
-    const std::string model_file = "benchmarks/mnist/results/mnist_model.qbin";
-    const std::string summary_file = "benchmarks/mnist/results/summary.txt";
-    const std::string csv_file = "benchmarks/mnist/results/benchmark_data.csv";
+struct Images {
+    uint32_t count = 0;
+    std::vector<uint8_t> pixels;  // count * 784
+    std::vector<uint8_t> labels;  // count
+};
 
-    std::vector<engine::QuantizedTensor> model;
-    std::ifstream check_file(model_file, std::ios::binary);
-    
-    if (check_file.is_open()) {
-        check_file.close();
-        model = engine::load_quantized_model(model_file);
-        std::cout << "[Step 1] Successfully loaded trained weights from " << model_file << "\n";
-    } else {
-        std::cout << "[Step 1] Pretrained file not found; generating synthetic 784->128->10 weights...\n";
-        engine::QuantParams qW1 = {0.008f, 0};
-        engine::QuantParams qb1 = {0.002f, 0};
-        engine::QuantParams qW2 = {0.012f, 0};
-        engine::QuantParams qb2 = {0.004f, 0};
+Images load_images(const std::string &path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) throw std::runtime_error("cannot open " + path + " (run export_model_and_data.py first)");
+    uint32_t header[4];
+    f.read(reinterpret_cast<char *>(header), sizeof(header));
+    if (header[0] != 0x54534E4D || header[2] != 28 || header[3] != 28)
+        throw std::runtime_error("bad header in " + path);
+    Images im;
+    im.count = header[1];
+    im.pixels.resize(static_cast<size_t>(im.count) * 784);
+    im.labels.resize(im.count);
+    f.read(reinterpret_cast<char *>(im.pixels.data()), static_cast<std::streamsize>(im.pixels.size()));
+    f.read(reinterpret_cast<char *>(im.labels.data()), static_cast<std::streamsize>(im.labels.size()));
+    if (!f) throw std::runtime_error("truncated file " + path);
+    return im;
+}
 
-        engine::QuantizedTensor W1(784, 128, qW1);
-        engine::QuantizedTensor b1(1, 128, qb1);
-        engine::QuantizedTensor W2(128, 10, qW2);
-        engine::QuantizedTensor b2(1, 10, qb2);
+struct Fp32Model {
+    engine::Tensor<float> W1{784, 128}, b1{1, 128}, W2{128, 10}, b2{1, 10};
+};
 
-        for (size_t i = 0; i < W1.size(); ++i) W1.data()[i] = static_cast<int8_t>((i % 25) - 12);
-        for (size_t i = 0; i < b1.size(); ++i) b1.data()[i] = static_cast<int8_t>(i % 5);
-        for (size_t i = 0; i < W2.size(); ++i) W2.data()[i] = static_cast<int8_t>((i % 19) - 9);
-        for (size_t i = 0; i < b2.size(); ++i) b2.data()[i] = static_cast<int8_t>(i % 3);
+Fp32Model load_fp32(const std::string &path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) throw std::runtime_error("cannot open " + path);
+    Fp32Model m;
+    for (engine::Tensor<float> *t : {&m.W1, &m.b1, &m.W2, &m.b2})
+        f.read(reinterpret_cast<char *>(t->data()), static_cast<std::streamsize>(t->size() * sizeof(float)));
+    if (!f) throw std::runtime_error("truncated file " + path);
+    return m;
+}
 
-        model = {W1, b1, W2, b2};
-        engine::save_quantized_model(model_file, model);
+Fp32Model dequantized(const std::vector<engine::QuantizedTensor> &q) {
+    Fp32Model m;
+    m.W1 = engine::dequantize_tensor(q[0]);
+    m.b1 = engine::dequantize_tensor(q[1]);
+    m.W2 = engine::dequantize_tensor(q[2]);
+    m.b2 = engine::dequantize_tensor(q[3]);
+    return m;
+}
+
+engine::Tensor<float> image_to_float(const Images &im, size_t i) {
+    engine::Tensor<float> x(1, 784);
+    for (size_t k = 0; k < 784; ++k) x.data()[k] = im.pixels[i * 784 + k] / 255.0f;
+    return x;
+}
+
+// FP32 forward pass. Writes hidden activations and logits.
+void forward_fp32(const Fp32Model &m, const engine::Tensor<float> &x,
+                  engine::Tensor<float> &h, engine::Tensor<float> &out) {
+    engine::matmul_fp32(x, m.W1, h);
+    engine::bias_add(h, m.b1);
+    engine::relu_inplace(h);
+    engine::matmul_fp32(h, m.W2, out);
+    engine::bias_add(out, m.b2);
+}
+
+template <typename T>
+size_t argmax(const T *v, size_t n) {
+    return static_cast<size_t>(std::max_element(v, v + n) - v);
+}
+
+struct Int8Pipeline {
+    engine::QuantParams in, hidden, out;
+    int32_t m1 = 0, m2 = 0;
+    int s1 = 0, s2 = 0;
+};
+
+Int8Pipeline make_pipeline(const std::vector<engine::QuantizedTensor> &q,
+                           engine::QuantParams hidden, engine::QuantParams out) {
+    Int8Pipeline p;
+    // Pixels p in 0..255 map exactly to q = p - 128 with S = 1/255, Z = -128.
+    p.in = {1.0f / 255.0f, -128};
+    p.hidden = hidden;
+    p.out = out;
+    // Requantization multipliers are computed once, offline; inference is integer-only.
+    engine::quantize_multiplier_and_shift(
+        double(p.in.scale) * double(q[0].params().scale) / double(p.hidden.scale), p.m1, p.s1);
+    engine::quantize_multiplier_and_shift(
+        double(p.hidden.scale) * double(q[2].params().scale) / double(p.out.scale), p.m2, p.s2);
+    return p;
+}
+
+size_t predict_int8(const std::vector<engine::QuantizedTensor> &q, const Int8Pipeline &p,
+                    const Images &im, size_t i) {
+    engine::QuantizedTensor x(1, 784, p.in);
+    for (size_t k = 0; k < 784; ++k) x.data()[k] = static_cast<int8_t>(int(im.pixels[i * 784 + k]) - 128);
+    engine::QuantizedTensor h(1, 128, p.hidden);
+    engine::matmul_int8_fixed_point_fused(x, q[0], q[1], h, p.m1, p.s1, /*apply_relu=*/true);
+    engine::QuantizedTensor out(1, 10, p.out);
+    engine::matmul_int8_fixed_point_fused(h, q[2], q[3], out, p.m2, p.s2, /*apply_relu=*/false);
+    return argmax(out.data(), 10);  // same scale for all logits, so argmax on INT8 is exact
+}
+
+double accuracy_int8(const std::vector<engine::QuantizedTensor> &q, const Int8Pipeline &p,
+                     const Images &test, std::vector<size_t> *preds = nullptr) {
+    size_t correct = 0;
+    for (size_t i = 0; i < test.count; ++i) {
+        size_t y = predict_int8(q, p, test, i);
+        if (preds) (*preds)[i] = y;
+        correct += (y == test.labels[i]);
     }
+    return 100.0 * double(correct) / double(test.count);
+}
 
-    engine::QuantizedTensor& qW1 = model[0];
-    engine::QuantizedTensor& qb1 = model[1];
-    engine::QuantizedTensor& qW2 = model[2];
-    engine::QuantizedTensor& qb2 = model[3];
-
-    engine::Tensor<float> fp_W1 = engine::dequantize_tensor(qW1);
-    engine::Tensor<float> fp_b1 = engine::dequantize_tensor(qb1);
-    engine::Tensor<float> fp_W2 = engine::dequantize_tensor(qW2);
-    engine::Tensor<float> fp_b2 = engine::dequantize_tensor(qb2);
-
-    const size_t NUM_SAMPLES = 1000;
-    std::mt19937 rng(42);
-    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
-
-    std::vector<engine::Tensor<float>> test_samples_fp32;
-    test_samples_fp32.reserve(NUM_SAMPLES);
-    for (size_t s = 0; s < NUM_SAMPLES; ++s) {
-        engine::Tensor<float> img(1, 784, 0.0f);
-        for (size_t i = 0; i < 784; ++i) {
-            img.data()[i] = dist(rng);
-        }
-        test_samples_fp32.push_back(std::move(img));
+double accuracy_fp32(const Fp32Model &m, const Images &test, std::vector<size_t> *preds = nullptr) {
+    engine::Tensor<float> h(1, 128), out(1, 10);
+    size_t correct = 0;
+    for (size_t i = 0; i < test.count; ++i) {
+        forward_fp32(m, image_to_float(test, i), h, out);
+        size_t y = argmax(out.data(), 10);
+        if (preds) (*preds)[i] = y;
+        correct += (y == test.labels[i]);
     }
+    return 100.0 * double(correct) / double(test.count);
+}
 
-    engine::ArenaAllocator memory_arena(65536);
-    engine::QuantParams q_in = {0.015f, 0};
-    engine::QuantParams q_h1 = {0.035f, 0};
-    engine::QuantParams q_out = {0.080f, 0};
-
-    double total_fp32_time_us = 0.0;
-    double total_int8_time_us = 0.0;
-    float max_logit_error = 0.0f;
-    double total_squared_error = 0.0;
-    size_t matching_predictions = 0;
-
-    std::ofstream csv(csv_file);
-    csv << "sample_idx,fp32_pred,int8_pred,match,max_err\n";
-
-    for (size_t s = 0; s < NUM_SAMPLES; ++s) {
-        const auto& x_fp32 = test_samples_fp32[s];
-
-        // --- FP32 Baseline Execution ---
-        auto t0 = std::chrono::high_resolution_clock::now();
-        engine::Tensor<float> fp_h1(1, 128, 0.0f);
-        engine::matmul_fp32(x_fp32, fp_W1, fp_h1);
-        engine::bias_add(fp_h1, fp_b1);
-        engine::relu(fp_h1, fp_h1);
-
-        engine::Tensor<float> fp_out(1, 10, 0.0f);
-        engine::matmul_fp32(fp_h1, fp_W2, fp_out);
-        engine::bias_add(fp_out, fp_b2);
-        auto t1 = std::chrono::high_resolution_clock::now();
-        total_fp32_time_us += std::chrono::duration<double, std::micro>(t1 - t0).count();
-
-        // --- INT8 Fixed-Point Execution ---
-        auto t2 = std::chrono::high_resolution_clock::now();
-        engine::QuantizedTensor qX = engine::quantize_tensor(x_fp32, q_in);
-        engine::QuantizedTensor qH1(1, 128, q_h1);
-        engine::matmul_int8_fixed_point(qX, qW1, qH1);
-        engine::bias_add(qH1, qb1);
-        engine::relu(qH1);
-
-        engine::QuantizedTensor qOut(1, 10, q_out);
-        engine::matmul_int8_fixed_point(qH1, qW2, qOut);
-        engine::bias_add(qOut, qb2);
-        auto t3 = std::chrono::high_resolution_clock::now();
-        total_int8_time_us += std::chrono::duration<double, std::micro>(t3 - t2).count();
-
-        engine::Tensor<float> deq_out = engine::dequantize_tensor(qOut);
-
-        size_t pred_fp32 = 0;
-        size_t pred_int8 = 0;
-        float max_val_fp = fp_out.data()[0];
-        float max_val_int = deq_out.data()[0];
-        float sample_max_err = 0.0f;
-
-        for (size_t c = 0; c < 10; ++c) {
-            float err = std::abs(fp_out.data()[c] - deq_out.data()[c]);
-            if (err > sample_max_err) sample_max_err = err;
-            if (err > max_logit_error) max_logit_error = err;
-            total_squared_error += err * err;
-
-            if (fp_out.data()[c] > max_val_fp) {
-                max_val_fp = fp_out.data()[c];
-                pred_fp32 = c;
-            }
-            if (deq_out.data()[c] > max_val_int) {
-                max_val_int = deq_out.data()[c];
-                pred_int8 = c;
-            }
-        }
-
-        bool match = (pred_fp32 == pred_int8);
-        if (match) matching_predictions++;
-
-        if (s < 100) {
-            csv << s << "," << pred_fp32 << "," << pred_int8 << "," << (match ? 1 : 0) << "," << sample_max_err << "\n";
-        }
+// Run the FP32 model on the calibration images and collect hidden activations and logits.
+void calibrate(const Fp32Model &m, const Images &calib, engine::Tensor<float> &hidden_all,
+               engine::Tensor<float> &logits_all) {
+    engine::Tensor<float> h(1, 128), out(1, 10);
+    for (size_t i = 0; i < calib.count; ++i) {
+        forward_fp32(m, image_to_float(calib, i), h, out);
+        std::copy(h.data(), h.data() + 128, hidden_all.data() + i * 128);
+        std::copy(out.data(), out.data() + 10, logits_all.data() + i * 10);
     }
-    csv.close();
+}
 
-    double agreement_rate = (100.0 * matching_predictions) / NUM_SAMPLES;
-    double avg_fp32_latency = total_fp32_time_us / NUM_SAMPLES;
-    double avg_int8_latency = total_int8_time_us / NUM_SAMPLES;
-    double rmse = std::sqrt(total_squared_error / (NUM_SAMPLES * 10));
-    double speedup = avg_fp32_latency / avg_int8_latency;
+}  // namespace
 
-    std::cout << "\n================ Benchmark Summary ================\n";
-    std::cout << "Evaluated Samples:       " << NUM_SAMPLES << "\n";
-    std::cout << "Top-1 Agreement Rate:    " << std::fixed << std::setprecision(2) << agreement_rate << " %\n";
-    std::cout << "Max Logit Error (L_inf): " << std::fixed << std::setprecision(4) << max_logit_error << "\n";
-    std::cout << "Root Mean Square Error:  " << std::fixed << std::setprecision(4) << rmse << "\n";
-    std::cout << "FP32 Latency / sample:   " << std::fixed << std::setprecision(2) << avg_fp32_latency << " us\n";
-    std::cout << "INT8 Latency / sample:   " << std::fixed << std::setprecision(2) << avg_int8_latency << " us\n";
-    std::cout << "Inference Speedup:       " << std::fixed << std::setprecision(2) << speedup << "x\n";
-    std::cout << "Arena Peak Memory:       " << memory_arena.capacity() << " Bytes\n";
-    std::cout << "===================================================\n\n";
+int main(int argc, char **argv) {
+    try {
+        const std::string qbin = argc > 1 ? argv[1] : "benchmarks/mnist/results/mnist_model.qbin";
+        const auto q = engine::load_quantized_model(qbin);
+        if (q.size() != 4) throw std::runtime_error("expected 4 tensors in " + qbin);
+        const Fp32Model fp = load_fp32("benchmarks/mnist/data/fp32_weights.bin");
+        const Images test = load_images("benchmarks/mnist/data/mnist_test.bin");
+        const Images calib = load_images("benchmarks/mnist/data/mnist_calib.bin");
 
-    std::ofstream out(summary_file);
-    out << "MNIST Benchmark Evaluation Summary\n";
-    out << "Samples: " << NUM_SAMPLES << "\n";
-    out << "Agreement Rate: " << agreement_rate << "%\n";
-    out << "Max Logit Error: " << max_logit_error << "\n";
-    out << "RMSE: " << rmse << "\n";
-    out << "FP32 Avg Latency: " << avg_fp32_latency << " us\n";
-    out << "INT8 Avg Latency: " << avg_int8_latency << " us\n";
-    out << "Speedup: " << speedup << "x\n";
-    out.close();
+        std::printf("Model:        %s\n", qbin.c_str());
+        std::printf("Weight zero points: W1 %d, W2 %d\n", q[0].params().zero_point, q[2].params().zero_point);
+        std::printf("Test images:  %u   Calibration images (train set): %u\n\n", test.count, calib.count);
 
-    std::cout << "Results saved to " << summary_file << " and " << csv_file << "\n";
-    return 0;
+        engine::Tensor<float> hid(calib.count, 128), logit(calib.count, 10);
+        calibrate(fp, calib, hid, logit);
+
+        // Primary configuration, fixed in advance: min/max calibration.
+        const auto hidden_mm = engine::calculate_quant_params_calibrated(hid, engine::CalibrationMethod::MinMax);
+        const auto out_mm = engine::calculate_quant_params_calibrated(logit, engine::CalibrationMethod::MinMax);
+        // Comparison: 99.99th-percentile clipping of the hidden layer.
+        const auto hidden_pc =
+            engine::calculate_quant_params_calibrated(hid, engine::CalibrationMethod::Percentile, 99.99f);
+
+        std::vector<size_t> pred_fp(test.count), pred_q(test.count);
+        const double acc_fp = accuracy_fp32(fp, test, &pred_fp);
+        const double acc_wq = accuracy_fp32(dequantized(q), test);
+        const Int8Pipeline p_mm = make_pipeline(q, hidden_mm, out_mm);
+        const double acc_q = accuracy_int8(q, p_mm, test, &pred_q);
+        const double acc_pc = accuracy_int8(q, make_pipeline(q, hidden_pc, out_mm), test);
+
+        size_t agree = 0;
+        for (size_t i = 0; i < test.count; ++i) agree += (pred_fp[i] == pred_q[i]);
+
+        std::printf("Hidden activation scale %.6f (zero point %d), output scale %.6f (zero point %d)\n\n",
+                    hidden_mm.scale, hidden_mm.zero_point, out_mm.scale, out_mm.zero_point);
+        std::printf("%-46s %8s\n", "Configuration", "Accuracy");
+        std::printf("%-46s %7.2f%%\n", "FP32 reference", acc_fp);
+        std::printf("%-46s %7.2f%%\n", "INT8 weights, FP32 activations", acc_wq);
+        std::printf("%-46s %7.2f%%\n", "INT8 end to end (min/max calibration)", acc_q);
+        std::printf("%-46s %7.2f%%\n", "INT8 end to end (99.99th pct hidden clipping)", acc_pc);
+        std::printf("\nINT8 vs FP32 top-1 agreement: %.2f%% (%zu of %u test images)\n",
+                    100.0 * double(agree) / double(test.count), agree, test.count);
+
+        std::ofstream s("benchmarks/mnist/results/summary.txt");
+        s << "model " << qbin << "\n"
+          << "fp32_accuracy " << acc_fp << "\n"
+          << "int8_weights_fp32_activations_accuracy " << acc_wq << "\n"
+          << "int8_accuracy_minmax " << acc_q << "\n"
+          << "int8_accuracy_pct99.99 " << acc_pc << "\n"
+          << "agreement " << 100.0 * double(agree) / double(test.count) << "\n";
+        return 0;
+    } catch (const std::exception &e) {
+        std::fprintf(stderr, "error: %s\n", e.what());
+        return 1;
+    }
 }

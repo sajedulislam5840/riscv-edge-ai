@@ -1,6 +1,5 @@
 import numpy as np
 import base64
-import struct
 import os
 
 print('--- Step 1: Loading MNIST Dataset ---')
@@ -144,35 +143,5 @@ with open('web/js/weights.js', 'w', encoding='utf-8') as f:
     f.write(js_content)
 print('Saved web/js/weights.js successfully')
 
-# 2. Write benchmarks/mnist/results/mnist_model.qbin for C++ engine
-def calc_quant_params(arr):
-    mn = float(np.min(arr))
-    mx = float(np.max(arr))
-    mn = min(mn, 0.0)
-    mx = max(mx, 0.0)
-    if abs(mx - mn) < 1e-7:
-        return 1.0, 0
-    s = (mx - mn) / 255.0
-    zp = int(np.clip(np.round(-128.0 - (mn / s)), -128, 127))
-    return s, zp
-
-os.makedirs('benchmarks/mnist/results', exist_ok=True)
-qbin_path = 'benchmarks/mnist/results/mnist_model.qbin'
-
-tensors = [
-    (784, 128, W1),
-    (1, 128, b1.reshape(1, 128)),
-    (128, 10, W2),
-    (1, 10, b2.reshape(1, 10))
-]
-
-with open(qbin_path, 'wb') as f:
-    f.write(struct.pack('<II', 0x514E4554, len(tensors)))
-    for rows, cols, arr in tensors:
-        s, zp = calc_quant_params(arr)
-        q = np.clip(np.round(arr / s) + zp, -128, 127).astype(np.int8)
-        f.write(struct.pack('<IIfi', rows, cols, s, zp))
-        f.write(q.tobytes())
-
-print(f'Saved C++ binary: {qbin_path}')
-print('Training & Export complete!')
+# The INT8 model for the C++ engine is produced from weights.js by export_model_and_data.py.
+print('Training complete. Next: python benchmarks/mnist/export_model_and_data.py')

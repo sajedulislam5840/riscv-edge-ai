@@ -1,182 +1,110 @@
-// =============================================================================
-// gen_simd_vectors.cpp — Golden SIMD MAC Vector Generator
-// Description: Loads the trained MNIST model (mnist_model.qbin), slices
-//              input activations and weights into 4-byte INT8 chunks,
-//              computes dot products using the software MAC model, and writes
-//              hardware/tb/golden_vectors.hex ready for Verilog co-simulation.
+// Golden test vectors for the simd_mac RTL.
 //
-// Output format (one vector per line):
-//   <rs1_hex8> <rs2_hex8> <acc_in_hex8> <clr_acc_bit> <expected_rd_hex8>
+// Takes the INT8 MNIST model and one real test image, splits every first-layer dot product
+// into 4-byte chunks exactly as firmware would feed them to the custom instruction, and writes
+// one line per instruction to hardware/tb/golden_vectors.hex:
 //
-// Compile:  g++ -std=c++17 -O2 -o gen_simd_vectors gen_simd_vectors.cpp
-// Run:      ./gen_simd_vectors
-//           (run from repo root; reads benchmarks/mnist/results/mnist_model.qbin)
-// =============================================================================
+//   <rs1> <rs2> <acc_in> <clr_acc> <expected_rd>      (hex, hex, hex, 0/1, hex)
+//
+// rs1 holds four input bytes (q = pixel - 128), rs2 four weight bytes of one neuron.
+// The MAC multiplies raw signed bytes. Because weights are symmetric (zero point 0), the
+// layer's accumulator is  sum((q_x - Z_x) * w) = sum(q_x * w) - Z_x * sum(w),  so the
+// activation zero point becomes a per-neuron constant that firmware folds into the bias.
+// This program checks that identity against the engine for every neuron.
+//
+// Run from the repo root (after export_model_and_data.py):
+//   ./build/gen_simd_vectors [model.qbin] [test_images.bin] [image_index] [out.hex]
+
+#include "engine/quantize.hpp"
 
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
-#include <cmath>
-#include <cassert>
-#include <vector>
-#include <array>
-#include <string>
 #include <fstream>
-#include <filesystem>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
-namespace fs = std::filesystem;
-
-// ---------------------------------------------------------------------------
-// QBIN model structure (format written by benchmarks/mnist/train_and_export.py)
-// ---------------------------------------------------------------------------
-struct QbinModel {
-    char     magic[4];    // "TENQ"
-    int32_t  version;
-    int32_t  in_size;     // 784
-    int32_t  hid_size;    // 128
-    float    scale_w1;
-    int32_t  out_size;    // ignored for dot product generation
-    std::vector<int8_t>  W1;      // shape: [in_size, hid_size]
-    std::vector<int32_t> b1;      // shape: [hid_size]
-};
-
-static QbinModel load_qbin(const std::string& path) {
-    std::ifstream f(path, std::ios::binary);
-    if (!f) throw std::runtime_error("Cannot open: " + path);
-
-    QbinModel m;
-    f.read(m.magic, 4);
-    if (std::strncmp(m.magic, "TENQ", 4) != 0)
-        throw std::runtime_error("Invalid TENQ magic");
-
-    f.read(reinterpret_cast<char*>(&m.version),  4);
-    f.read(reinterpret_cast<char*>(&m.in_size),  4);
-    f.read(reinterpret_cast<char*>(&m.hid_size), 4);
-    f.read(reinterpret_cast<char*>(&m.scale_w1), 4);
-    f.read(reinterpret_cast<char*>(&m.out_size), 4);
-
-    // W1: in_size × hid_size int8
-    m.W1.resize(static_cast<size_t>(m.in_size) * m.hid_size);
-    f.read(reinterpret_cast<char*>(m.W1.data()), m.W1.size());
-
-    // b1: hid_size int32
-    m.b1.resize(m.hid_size);
-    f.read(reinterpret_cast<char*>(m.b1.data()), m.hid_size * 4);
-
-    return m;
+static uint32_t pack4(const int8_t *v) {
+    return uint32_t(uint8_t(v[0])) | uint32_t(uint8_t(v[1])) << 8 |
+           uint32_t(uint8_t(v[2])) << 16 | uint32_t(uint8_t(v[3])) << 24;
 }
 
-// ---------------------------------------------------------------------------
-// Pack four int8 values into uint32 (little-endian)
-// ---------------------------------------------------------------------------
-static uint32_t pack4(int8_t b0, int8_t b1, int8_t b2, int8_t b3) {
-    return static_cast<uint32_t>(static_cast<uint8_t>(b0))
-         | (static_cast<uint32_t>(static_cast<uint8_t>(b1)) << 8)
-         | (static_cast<uint32_t>(static_cast<uint8_t>(b2)) << 16)
-         | (static_cast<uint32_t>(static_cast<uint8_t>(b3)) << 24);
-}
-
-// ---------------------------------------------------------------------------
-// Software SIMD MAC model (bit-exact to RTL)
-// ---------------------------------------------------------------------------
+// Bit-exact software model of one simd_mac instruction.
 static int32_t simd_mac_sw(int32_t acc, uint32_t rs1, uint32_t rs2) {
     int32_t sum = 0;
-    for (int i = 0; i < 4; i++) {
-        int8_t  a = static_cast<int8_t>((rs1 >> (i * 8)) & 0xFF);
-        int8_t  b = static_cast<int8_t>((rs2 >> (i * 8)) & 0xFF);
-        sum += static_cast<int32_t>(a) * static_cast<int32_t>(b);
-    }
+    for (int i = 0; i < 4; ++i)
+        sum += int32_t(int8_t(rs1 >> (8 * i))) * int32_t(int8_t(rs2 >> (8 * i)));
     return acc + sum;
 }
 
-// ---------------------------------------------------------------------------
-// Generate vectors: for each output neuron j, stream all 784/4=196 chunks
-// of the input activation row (use a fixed quantized test pattern) dot W1[:,j]
-// ---------------------------------------------------------------------------
-int main(int argc, char** argv) {
-    std::string qbin_path = "benchmarks/mnist/results/mnist_model.qbin";
-    std::string out_path  = "hardware/tb/golden_vectors.hex";
+static std::vector<int8_t> load_input(const std::string &path, uint32_t index, uint8_t &label) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) throw std::runtime_error("cannot open " + path + " (run export_model_and_data.py first)");
+    uint32_t h[4];
+    f.read(reinterpret_cast<char *>(h), sizeof(h));
+    if (h[0] != 0x54534E4D || index >= h[1]) throw std::runtime_error("bad data file or index");
+    std::vector<uint8_t> px(784);
+    f.seekg(16 + std::streamoff(index) * 784);
+    f.read(reinterpret_cast<char *>(px.data()), 784);
+    f.seekg(16 + std::streamoff(h[1]) * 784 + index);
+    f.read(reinterpret_cast<char *>(&label), 1);
+    std::vector<int8_t> q(784);
+    for (int k = 0; k < 784; ++k) q[k] = int8_t(int(px[k]) - 128);  // S = 1/255, Z = -128
+    return q;
+}
 
-    if (argc > 1) qbin_path = argv[1];
-    if (argc > 2) out_path  = argv[2];
+int main(int argc, char **argv) {
+    try {
+        const std::string qbin = argc > 1 ? argv[1] : "benchmarks/mnist/results/mnist_model.qbin";
+        const std::string data = argc > 2 ? argv[2] : "benchmarks/mnist/data/mnist_test.bin";
+        const uint32_t index = argc > 3 ? uint32_t(std::stoul(argv[3])) : 0;
+        const std::string out_path = argc > 4 ? argv[4] : "hardware/tb/golden_vectors.hex";
 
-    printf("Loading model: %s\n", qbin_path.c_str());
-    QbinModel model = load_qbin(qbin_path);
-    printf("Model: in=%d, hid=%d, scale_w1=%.6f\n",
-           model.in_size, model.hid_size, model.scale_w1);
+        const auto model = engine::load_quantized_model(qbin);
+        const engine::QuantizedTensor &W1 = model.at(0);
+        if (W1.params().zero_point != 0)
+            throw std::runtime_error("weights must be symmetric (zero point 0) for the SIMD MAC");
+        const size_t K = W1.rows(), N = W1.cols();
+        if (K % 4 != 0) throw std::runtime_error("input size must be a multiple of 4");
 
-    // Generate a fixed quantized activation pattern:
-    // Use MNIST-like pixel values scaled to INT8 range
-    // Pattern: activation[i] = (i % 256) - 128  (synthetic but realistic spread)
-    std::vector<int8_t> activation(model.in_size);
-    for (int i = 0; i < model.in_size; i++) {
-        activation[i] = static_cast<int8_t>((i * 7 + 13) % 128);
-    }
+        uint8_t label = 0;
+        const std::vector<int8_t> x = load_input(data, index, label);
+        const int32_t zx = -128;
 
-    std::ofstream out(out_path);
-    if (!out) {
-        fprintf(stderr, "Cannot open output: %s\n", out_path.c_str());
+        std::ofstream out(out_path);
+        if (!out) throw std::runtime_error("cannot write " + out_path);
+        // No header lines: the Verilog testbench reads the file with $fscanf and expects data only.
+
+        std::vector<int8_t> w(K);
+        size_t vectors = 0;
+        for (size_t j = 0; j < N; ++j) {
+            for (size_t k = 0; k < K; ++k) w[k] = W1(k, j);
+
+            int32_t acc = 0, sum_w = 0, reference = 0;
+            for (size_t c = 0; c < K / 4; ++c) {
+                const uint32_t rs1 = pack4(&x[4 * c]), rs2 = pack4(&w[4 * c]);
+                const int clr = (c == 0);
+                const int32_t acc_in = clr ? 0 : acc;
+                acc = simd_mac_sw(acc_in, rs1, rs2);
+                char line[64];
+                std::snprintf(line, sizeof(line), "%08x %08x %08x %d %08x\n", rs1, rs2,
+                              uint32_t(acc_in), clr, uint32_t(acc));
+                out << line;
+                ++vectors;
+            }
+            for (size_t k = 0; k < K; ++k) {
+                sum_w += w[k];
+                reference += (int32_t(x[k]) - zx) * int32_t(w[k]);  // what the engine computes
+            }
+            if (acc - zx * sum_w != reference)
+                throw std::runtime_error("zero-point folding mismatch at neuron " + std::to_string(j));
+        }
+        std::printf("Wrote %zu vectors (%zu neurons x %zu chunks) from test image %u (label %d) to %s\n",
+                    vectors, N, K / 4, index, int(label), out_path.c_str());
+        std::printf("Zero-point folding check passed for all %zu neurons\n", N);
+        return 0;
+    } catch (const std::exception &e) {
+        std::fprintf(stderr, "error: %s\n", e.what());
         return 1;
     }
-
-    // Write header comment
-    out << "# SIMD MAC Golden Vectors — Generated from MNIST mnist_model.qbin\n";
-    out << "# Format: rs1_hex rs2_hex acc_in_hex clr_acc expected_rd_hex\n";
-    out << "# rs1 = 4 packed INT8 activations (little-endian)\n";
-    out << "# rs2 = 4 packed INT8 weights     (little-endian)\n";
-    out << "# clr_acc = 1 on first chunk of each dot product, 0 for subsequent chunks\n";
-    out << "#\n";
-
-    int    vectors_written = 0;
-    int    chunks_per_dot  = model.in_size / 4;   // 196 for 784-dim input
-
-    // For each of hid_size (128) output neurons
-    for (int j = 0; j < model.hid_size; j++) {
-        int32_t acc_gold = 0;
-
-        for (int chunk = 0; chunk < chunks_per_dot; chunk++) {
-            int    base  = chunk * 4;
-            int    clr   = (chunk == 0) ? 1 : 0;
-
-            // Pack 4 activations into rs1
-            uint32_t rs1 = pack4(
-                activation[base + 0],
-                activation[base + 1],
-                activation[base + 2],
-                activation[base + 3]
-            );
-
-            // Pack 4 weights (W1 is row-major: W1[in_idx, j])
-            uint32_t rs2 = pack4(
-                model.W1[(base + 0) * model.hid_size + j],
-                model.W1[(base + 1) * model.hid_size + j],
-                model.W1[(base + 2) * model.hid_size + j],
-                model.W1[(base + 3) * model.hid_size + j]
-            );
-
-            // Compute expected result using software model
-            int32_t acc_in = clr ? 0 : acc_gold;
-            acc_gold = simd_mac_sw(acc_in, rs1, rs2);
-
-            // Write vector line
-            out << std::hex;
-            char line[128];
-            std::snprintf(line, sizeof(line),
-                "%08x %08x %08x %d %08x\n",
-                rs1,
-                rs2,
-                static_cast<uint32_t>(acc_in),
-                clr,
-                static_cast<uint32_t>(acc_gold));
-            out << line;
-            vectors_written++;
-        }
-    }
-
-    out.close();
-    printf("Written %d vectors (%d dot products × %d chunks) to: %s\n",
-           vectors_written, model.hid_size, chunks_per_dot, out_path.c_str());
-
-    return 0;
 }

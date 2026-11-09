@@ -10,6 +10,7 @@ include_directories(include)
 file(GLOB_RECURSE ENGINE_SOURCES "src/*.cpp")
 add_executable(engine_runner main.cpp ${ENGINE_SOURCES})
 add_executable(mnist_benchmark benchmarks/mnist/run_benchmark.cpp ${ENGINE_SOURCES})
+add_executable(gen_simd_vectors tests/gen_simd_vectors.cpp ${ENGINE_SOURCES})
 
 enable_testing()
 add_subdirectory(tests)
