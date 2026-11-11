@@ -239,7 +239,7 @@ bash hardware/scripts/synth.sh
 # Post-route Fmax on iCE40 UP5K and ECP5 (pip install yowasp-nextpnr-ice40 yowasp-nextpnr-ecp5)
 YOSYS=yowasp-yosys NEXTPNR_PREFIX=yowasp- bash hardware/scripts/fmax.sh
 
-# Optional: event-driven Verilog testbenches with Icarus Verilog
+# Optional: hand-written corner-case testbench with Icarus Verilog
 bash hardware/scripts/run_sim.sh
 ```
 
