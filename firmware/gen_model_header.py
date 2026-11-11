@@ -5,6 +5,11 @@ constants (web/js/quant_params.js, written by mnist_benchmark) and the ten examp
 (web/js/model_int8.js) into C arrays. It also computes the expected INT8 outputs for each image
 with exact integer arithmetic (the same as the C++ engine), so the firmware can check itself.
 
+For the custom MAC instructions it adds each layer's weights packed four bytes per 32-bit word,
+neuron by neuron (W1_PACKED, W2_PACKED), and a per-neuron constant -Z_x * sum(w) (ZCORR1,
+ZCORR2): the MAC multiplies raw signed bytes, and this term turns that into the layer's
+sum((x - Z_x) * w).
+
 Run from the repo root: python firmware/gen_model_header.py
 """
 import base64
@@ -71,6 +76,23 @@ def dense(x, zx, W, b, l, zout, relu):
     return out
 
 
+def packed_columns(W):
+    """Weights [K][N] -> N rows of K/4 words; word c of neuron j holds w[4c..4c+3][j]."""
+    K, N, w = W["rows"], W["cols"], W["data"]
+    assert K % 4 == 0
+    words = []
+    for j in range(N):
+        for c in range(K // 4):
+            b = [w[(4 * c + i) * N + j] & 0xFF for i in range(4)]
+            words.append(b[0] | b[1] << 8 | b[2] << 16 | b[3] << 24)
+    return words
+
+
+def zero_point_correction(W, zx):
+    K, N, w = W["rows"], W["cols"], W["data"]
+    return [-zx * sum(w[k * N + j] for k in range(K)) for j in range(N)]
+
+
 def c_array(ctype, name, values, per_line=24):
     lines = [", ".join(str(v) for v in values[i:i + per_line]) for i in range(0, len(values), per_line)]
     return f"static const {ctype} {name}[{len(values)}] = {{\n  " + ",\n  ".join(lines) + "\n};\n"
@@ -103,6 +125,10 @@ with open(OUT, "w", newline="\n") as f:
     f.write(c_array("int8_t", "B1", b1["data"]))
     f.write(c_array("int8_t", "W2", W2["data"]))
     f.write(c_array("int8_t", "B2", b2["data"]))
+    f.write(c_array("uint32_t", "W1_PACKED", packed_columns(W1), per_line=8))
+    f.write(c_array("uint32_t", "W2_PACKED", packed_columns(W2), per_line=8))
+    f.write(c_array("int32_t", "ZCORR1", zero_point_correction(W1, P["input"]["zeroPoint"]), per_line=12))
+    f.write(c_array("int32_t", "ZCORR2", zero_point_correction(W2, P["hidden"]["zeroPoint"]), per_line=12))
     f.write(c_array("uint8_t", "LABELS", [e[0] for e in examples]))
     f.write(c_array("uint32_t", "TEST_INDEX", [e[1] for e in examples]))
     f.write(f"static const uint8_t IMAGES[{len(examples)}][784] = {{\n")
