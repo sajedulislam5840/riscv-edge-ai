@@ -2,6 +2,8 @@
 window.PROJECT_RESULTS = {
   "firmware": {
     "instructionsPerInference": 818683,
+    "macClrAddInstructionsPerInference": 188967,
+    "macInstructionsPerInference": 162869,
     "macsPerInference": 101632,
     "imagesChecked": 10,
     "imagesCorrect": 10,
@@ -19,6 +21,8 @@ window.PROJECT_RESULTS = {
       "test image 61: label 8, predicted 8, outputs match host",
       "test image 7: label 9, predicted 9, outputs match host",
       "one inference: 818683 instructions, 818681 cycles (rdcycle)",
+      "with simd_mac_clr + add: 188967 instructions, 4.33x fewer",
+      "with simd_macz/simd_macc: 162869 instructions, 5.03x fewer",
       "multiply-accumulates per inference: 101632",
       "RESULT: all outputs match the C++ engine"
     ]

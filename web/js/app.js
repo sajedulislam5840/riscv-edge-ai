@@ -26,11 +26,19 @@
   if (RES.firmware) {
     if (RES.firmware.log) $("spike-log").textContent = RES.firmware.log.join("\n");
     $("ipm").textContent = (RES.firmware.instructionsPerInference / RES.firmware.macsPerInference).toFixed(1);
-    const mac = RES.firmware.macInstructionsPerInference;
-    if (mac) {
-      $("speed-mac-bar").style.width = (100 * mac / RES.firmware.instructionsPerInference).toFixed(1) + "%";
-      $("speed-mac-val").textContent = mac.toLocaleString("en");
-      $("speed-mac").classList.add("is-measured");
+    const base = RES.firmware.instructionsPerInference;
+    const showBar = (row, value) => {
+      if (!value) return;
+      $(row + "-bar").style.width = (100 * value / base).toFixed(1) + "%";
+      $(row + "-val").textContent = value.toLocaleString("en");
+      $(row).classList.add("is-measured");
+    };
+    showBar("speed-clr", RES.firmware.macClrAddInstructionsPerInference);
+    showBar("speed-mac", RES.firmware.macInstructionsPerInference);
+    if (RES.firmware.macInstructionsPerInference) {
+      const x = (base / RES.firmware.macInstructionsPerInference).toFixed(2);
+      $("speedup-int").textContent = x;
+      $("speedup-int-2").textContent = x;
     }
   }
 

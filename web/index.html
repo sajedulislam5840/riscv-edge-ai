@@ -201,8 +201,9 @@
             <span data-r="fmax.unit ecp5-25k.max" data-f="mhz">68.7</span> MHz on a Lattice ECP5.</dd>
         </div>
         <div>
-          <dt>Still to measure</dt>
-          <dd>The speed-up: the same network with and without the new instructions, on a simulated RISC-V chip (below).</dd>
+          <dt>Measured speed-up</dt>
+          <dd><span id="speedup-int">5.03</span>× fewer instructions to classify a digit on a simulated RISC-V chip,
+            with every output byte unchanged (below).</dd>
         </div>
       </dl>
 
@@ -233,7 +234,7 @@
         <figure class="log-panel">
           <figcaption><code>make -C firmware run</code></figcaption>
           <pre id="spike-log">riscv-edge-ai: bare-metal INT8 MNIST on RV32IM (scalar baseline)
-one inference: 818672 instructions
+one inference: 818683 instructions
 RESULT: all outputs match the C++ engine</pre>
         </figure>
         <div class="speed">
@@ -241,18 +242,24 @@ RESULT: all outputs match the C++ engine</pre>
           <div class="speed-row">
             <span class="speed-label">Plain RV32IM</span>
             <span class="speed-track"><span class="speed-bar" style="width:100%"></span></span>
-            <span class="speed-val" data-r="firmware.instructionsPerInference">818,672</span>
+            <span class="speed-val" data-r="firmware.instructionsPerInference">818,683</span>
+          </div>
+          <div class="speed-row" id="speed-clr">
+            <span class="speed-label">With <code>simd_mac_clr</code> + add</span>
+            <span class="speed-track"><span class="speed-bar speed-bar-mac" id="speed-clr-bar"></span></span>
+            <span class="speed-val" id="speed-clr-val">being measured</span>
           </div>
           <div class="speed-row" id="speed-mac">
-            <span class="speed-label">With the MAC instructions</span>
+            <span class="speed-label">With <code>simd_macz</code> / <code>simd_macc</code></span>
             <span class="speed-track"><span class="speed-bar speed-bar-mac" id="speed-mac-bar"></span></span>
             <span class="speed-val" id="speed-mac-val">being measured</span>
           </div>
           <p class="note">
             <span data-r="firmware.macsPerInference">101,632</span> multiply-accumulates per digit, so plain
-            RV32IM needs about <span id="ipm">8.1</span> instructions for each one.
-            Spike counts instructions, not clock cycles; cycle-accurate numbers come from running the
-            firmware on a real RISC-V core in simulation, the next step after this one.
+            RV32IM needs about <span id="ipm">8.1</span> instructions for each one. With the new instructions the
+            inner loop does four of them in six instructions: two loads, the MAC, two pointer steps and the
+            loop branch. Spike counts instructions, not clock cycles; cycle-accurate numbers come from running
+            the firmware on a real RISC-V core in simulation, the next step.
           </p>
         </div>
       </div>
@@ -280,10 +287,11 @@ RESULT: all outputs match the C++ engine</pre>
       <ul class="status">
         <li><span class="tag tag-done">Done</span>INT8 engine, calibration and test-set evaluation</li>
         <li><span class="tag tag-done">Done</span>Four-way multiply-accumulate unit in Verilog, synthesised and verified</li>
-        <li><span class="tag tag-done">Done</span>The whole network running bare-metal on a simulated RISC-V chip: <span data-r="firmware.instructionsPerInference">818,672</span> instructions per digit, same outputs as the C++ engine</li>
+        <li><span class="tag tag-done">Done</span>The whole network running bare-metal on a simulated RISC-V chip: <span data-r="firmware.instructionsPerInference">818,683</span> instructions per digit, same outputs as the C++ engine</li>
         <li><span class="tag tag-done">Done</span>Instructions that keep the running total inside the unit, so a two-port processor can use them</li>
-        <li><span class="tag tag-next">Next</span>The same firmware using the custom instructions, to measure the speed-up</li>
-        <li><span class="tag tag-later">Later</span>The unit attached to a real RISC-V core (PicoRV32), and a short technical report</li>
+        <li><span class="tag tag-done">Done</span>The same firmware with the custom instructions: <span data-r="firmware.macInstructionsPerInference">162,869</span> instructions per digit, <span id="speedup-int-2">5.03</span>× fewer, identical outputs</li>
+        <li><span class="tag tag-next">Next</span>The unit attached to a real RISC-V core (PicoRV32), for cycle-accurate numbers</li>
+        <li><span class="tag tag-later">Later</span>A short technical report</li>
       </ul>
     </section>
   </main>
@@ -296,8 +304,8 @@ RESULT: all outputs match the C++ engine</pre>
   <script src="js/weights.js?v=4"></script>
   <script src="js/model_int8.js?v=4"></script>
   <script src="js/quant_params.js?v=4"></script>
-  <script src="js/results.js?v=5"></script>
+  <script src="js/results.js?v=6"></script>
   <script src="js/int8_engine.js?v=4"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

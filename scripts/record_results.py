@@ -24,10 +24,13 @@ def read(path):
 
 
 def firmware(text):
-    lines = [l for l in text.splitlines() if l.startswith(("riscv-edge-ai", "test image", "one inference", "multiply", "RESULT"))]
+    lines = [l for l in text.splitlines()
+             if l.startswith(("riscv-edge-ai", "test image", "one inference", "with ", "multiply", "RESULT"))]
     images = [l for l in lines if l.startswith("test image")]
     return {
         "instructionsPerInference": int(re.search(r"one inference: (\d+) instructions", text).group(1)),
+        "macClrAddInstructionsPerInference": int(re.search(r"with simd_mac_clr \+ add: (\d+) instructions", text).group(1)),
+        "macInstructionsPerInference": int(re.search(r"with simd_macz/simd_macc: (\d+) instructions", text).group(1)),
         "macsPerInference": int(re.search(r"multiply-accumulates per inference: (\d+)", text).group(1)),
         "imagesChecked": len(images),
         "imagesCorrect": sum(1 for l in images if re.search(r"label (\d+), predicted \1,", l)),

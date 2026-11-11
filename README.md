@@ -32,9 +32,10 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | INT8 quantization library (affine, per-channel, Q31 requantization, BN folding, pooling, `.qbin` format) | Done, unit tested on host |
 | SIMD MAC RTL (`hardware/rtl/simd_mac.v`) + `custom-0` decoder wrapper | Done, synthesized and verified against golden vectors |
 | INT8 evaluation on the real MNIST test set (calibrated activations) | Done: 98.21% INT8 vs 98.23% FP32 |
-| Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,672 instructions per inference, outputs match the C++ engine |
+| Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,683 instructions per inference, outputs match the C++ engine |
 | Internal-accumulator instructions (`simd_macc` / `simd_macz`) for two-read-port cores | Done: wrapper verified on 25,088 instructions, costs 1 LUT and no Fmax |
-| Same firmware with the custom MAC instruction | In progress |
+| Same firmware with the custom MAC instructions | Done: 162,869 instructions per inference, **5.03x fewer**, outputs unchanged |
+| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate | Next |
 | Integration of the MAC into a RISC-V core (PicoRV32) | Planned |
 | Technical report | Planned |
 
@@ -55,13 +56,13 @@ flowchart LR
     D --> G
     G -->|"0 mismatches"| H["Verified"]
     B --> I["RV32IM firmware on Spike<br/>scalar baseline, bit-exact"]
-    I -.-> J2["Firmware with the MAC<br/>instruction, in progress"]
+    I --> J2["Firmware with the MAC<br/>instructions: 5.03x fewer"]
     J2 -.-> J["PicoRV32 + MAC in RTL<br/>planned"]
 
     classDef done fill:#0b3a53,stroke:#38bdf8,color:#e2e8f0
     classDef todo fill:#1e293b,stroke:#64748b,color:#94a3b8,stroke-dasharray:4 3
-    class A,B,C,D,E,F,G,H,I done
-    class J2,J todo
+    class A,B,C,D,E,F,G,H,I,J2 done
+    class J todo
 ```
 
 Solid boxes are done and verified; dashed boxes are in progress or planned.
@@ -156,14 +157,21 @@ Weights are quantized symmetrically (zero point 0, per tensor), which is what th
 
 `firmware/` runs the whole network on a simulated RV32IM processor (Spike): freestanding C, integer-only, no heap, no standard library, weights compiled in as constant arrays. On the ten example test images (one per digit) it predicts every label correctly, and every output byte matches the C++ engine; the firmware checks this itself and exits with an error otherwise.
 
-| Measurement (scalar RV32IM, `-O2`) | Value |
-|---|---|
-| Instructions per inference | 818,672 |
-| Multiply-accumulates per inference | 101,632 |
-| Instructions per multiply-accumulate | about 8.1 |
-| Code + model size | 112 KB |
+The firmware runs the network three times per image and checks all three against the engine:
 
-Spike executes one instruction per step, so its `rdcycle` equals `rdinstret`: these are exact instruction counts, not pipeline-accurate cycle counts. Cycle-accurate numbers come from running the same firmware on a RISC-V core in RTL simulation (roadmap step 3). The next measurement is the same firmware using the custom MAC instruction.
+| Version (RV32IM, `gcc -O2`) | Instructions per inference | Inner loop | vs scalar |
+|---|---|---|---|
+| Scalar C | 818,683 | about 8 instructions per multiply-accumulate | 1x |
+| `simd_mac_clr` + `add` | 188,967 | 7 instructions per 4 multiply-accumulates | **4.33x fewer** |
+| `simd_macz` / `simd_macc` | 162,869 | 6 instructions per 4 multiply-accumulates | **5.03x fewer** |
+
+101,632 multiply-accumulates per inference; code and model take about 112 KB. Spike runs the custom-0 instructions through an extension library with the RTL's semantics (`firmware/spike_ext/`), checked by `firmware/isa_test.c` (19,005 checks against a C reference).
+
+What the numbers mean, and what they do not:
+
+- Spike executes one instruction per step, so `rdcycle` equals `rdinstret`: these are exact **instruction counts**, not pipeline cycles. Cycle-accurate numbers come from running the same firmware on a RISC-V core in RTL simulation (roadmap step 3).
+- Both sides are compiled C at `-O2`, not hand-written assembly. The scalar loop does one multiply-accumulate per iteration; the MAC loop is now bound by its two loads per four multiply-accumulates. Unrolling it to drop the pointer steps and branches is the obvious next optimization.
+- The weights are packed four per word per neuron for the MAC versions; the per-neuron zero-point correction is computed offline (see Design notes).
 
 ---
 
@@ -205,7 +213,8 @@ flowchart LR
     Q --> G["C++ golden model<br/>of simd_mac"]
     G --> R["Verilog RTL<br/>25,088 vectors, 0 mismatches"]
     Q --> F2["Bare-metal firmware on Spike<br/>bit-exact with the engine"]
-    R -.-> S["Firmware with the MAC<br/>instruction, in progress"]
+    R --> S["Firmware with the MAC<br/>instructions, bit-exact"]
+    F2 --> S
     S -.-> K["Full core in RTL simulation<br/>planned"]
 ```
 
@@ -297,7 +306,7 @@ gantt
     section Software
     Real MNIST eval and calibration :done, a1, 2026-11-09, 1d
     Scalar firmware on Spike        :done, a2, 2026-11-11, 1d
-    MAC instruction in firmware     :a2b, after a2, 3d
+    MAC instructions in firmware    :done, a2b, 2026-11-11, 1d
     section Hardware
     MAC inside PicoRV32, RTL sim    :a3, after a2b, 5d
     section Write-up
@@ -305,7 +314,7 @@ gantt
 ```
 
 1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
-2. Freestanding C firmware for RV32IM on Spike. ~~Scalar baseline~~ done (818,672 instructions per inference, bit-exact). Next: the same GEMM with the SIMD dot-product instruction, and with an internal accumulator.
+2. ~~Freestanding C firmware for RV32IM on Spike, scalar and with the custom instructions.~~ Done: 818,683 vs 162,869 instructions per inference (5.03x fewer), bit-exact.
 3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Report area and Fmax with and without the unit.
 4. Short technical report.
 

@@ -198,14 +198,16 @@ table.isa code, .log-panel code { font-family: var(--mono); color: var(--cyan); 
 .log-panel figcaption { padding: 0.75rem 1.1rem; border-bottom: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
 .log-panel pre { margin: 0; padding: 1rem 1.1rem; font: 400 0.78rem/1.75 var(--mono); color: var(--text); overflow-x: auto; white-space: pre; }
 .speed h3 { margin-bottom: 1.25rem; }
-.speed-row { display: grid; grid-template-columns: 11rem 1fr 7.5rem; gap: 0.9rem; align-items: center; margin-bottom: 0.9rem; }
+.speed-row { display: grid; grid-template-columns: 13rem 1fr 7.5rem; gap: 0.9rem; align-items: center; margin-bottom: 0.9rem; }
 .speed-label { font-size: 0.95rem; color: var(--text); }
+.speed-label code { font-family: var(--mono); font-size: 0.85em; color: var(--cyan); }
 .speed-track { height: 12px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .speed-bar { display: block; height: 100%; background: var(--cyan); border-radius: 3px; }
 .speed-bar-mac { width: 0; background: var(--amber); }
 .speed-val { font: 500 0.95rem var(--mono); text-align: right; color: var(--text-strong); }
-#speed-mac:not(.is-measured) .speed-track { background: repeating-linear-gradient(90deg, var(--line) 0 8px, transparent 8px 14px); }
-#speed-mac:not(.is-measured) .speed-val { color: var(--muted); font-family: var(--sans); font-weight: 400; font-size: 0.875rem; }
+#speed-clr .speed-bar-mac { background: #c98a1f; }
+#speed-clr:not(.is-measured) .speed-track, #speed-mac:not(.is-measured) .speed-track { background: repeating-linear-gradient(90deg, var(--line) 0 8px, transparent 8px 14px); }
+#speed-clr:not(.is-measured) .speed-val, #speed-mac:not(.is-measured) .speed-val { color: var(--muted); font-family: var(--sans); font-weight: 400; font-size: 0.875rem; }
 .speed .note { margin-top: 1.25rem; color: var(--muted); }
 
 /* ------------------------------------------------------------ results */
