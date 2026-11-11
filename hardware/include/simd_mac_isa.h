@@ -6,6 +6,11 @@
 // Instruction Set:
 //   simd_mac      rd, rs1, rs2  |  funct7=0x00  |  rd += sum(rs1[i]*rs2[i])
 //   simd_mac_clr  rd, rs1, rs2  |  funct7=0x01  |  rd  = sum(rs1[i]*rs2[i])
+//   simd_macc     rd, rs1, rs2  |  funct7=0x02  |  acc += sum(rs1[i]*rs2[i]); rd = acc
+//   simd_macz     rd, rs1, rs2  |  funct7=0x03  |  acc  = sum(rs1[i]*rs2[i]); rd = acc
+//
+// simd_macc / simd_macz keep the running total inside the unit, so they read only rs1 and rs2
+// (two register read ports, as on PicoRV32's PCPI). simd_mac reads rd as a third operand.
 //
 // Register Packing Convention (little-endian):
 //   Byte 0 [7:0]  : INT8 lane 0
@@ -57,6 +62,24 @@
         : "r"(rs1), "r"(rs2) \
     )
 
+// simd_macz: start a new running total inside the unit; rd = that total
+// Encoding: funct7=0x03, funct3=0, opcode=custom-0
+#define SIMD_MACZ(rd, rs1, rs2) \
+    __asm__ volatile ( \
+        ".insn r " #CUSTOM_0 ", 0, 3, %0, %1, %2" \
+        : "=r"(rd) \
+        : "r"(rs1), "r"(rs2) \
+    )
+
+// simd_macc: add to the running total inside the unit; rd = the new total
+// Encoding: funct7=0x02, funct3=0, opcode=custom-0
+#define SIMD_MACC(rd, rs1, rs2) \
+    __asm__ volatile ( \
+        ".insn r " #CUSTOM_0 ", 0, 2, %0, %1, %2" \
+        : "=r"(rd) \
+        : "r"(rs1), "r"(rs2) \
+    )
+
 // =============================================================================
 // Software Fallback Path: Bit-exact C implementation for host compilation
 // Use for unit testing, golden reference, and cross-compilation compatibility
@@ -94,9 +117,24 @@ static inline int32_t simd_mac_clr_sw(uint32_t rs1, uint32_t rs2) {
     return sum;
 }
 
+// Model of the unit's internal running total, used by simd_macz / simd_macc.
+static int32_t simd_internal_acc_sw = 0;
+
+static inline int32_t simd_macz_sw(uint32_t rs1, uint32_t rs2) {
+    simd_internal_acc_sw = simd_mac_clr_sw(rs1, rs2);
+    return simd_internal_acc_sw;
+}
+
+static inline int32_t simd_macc_sw(uint32_t rs1, uint32_t rs2) {
+    simd_internal_acc_sw = simd_mac_sw(simd_internal_acc_sw, rs1, rs2);
+    return simd_internal_acc_sw;
+}
+
 // Map hardware macros to software fallbacks transparently
 #define SIMD_MAC(rd, rs1, rs2)     do { (rd) = simd_mac_sw((rd), (rs1), (rs2)); } while(0)
 #define SIMD_MAC_CLR(rd, rs1, rs2) do { (rd) = simd_mac_clr_sw((rs1), (rs2)); } while(0)
+#define SIMD_MACZ(rd, rs1, rs2)    do { (rd) = simd_macz_sw((rs1), (rs2)); } while(0)
+#define SIMD_MACC(rd, rs1, rs2)    do { (rd) = simd_macc_sw((rs1), (rs2)); } while(0)
 
 #endif  // __riscv && SIMD_MAC_HW_ENABLE
 

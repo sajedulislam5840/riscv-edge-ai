@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Compile simd_mac.v to C++ with Yosys CXXRTL and run all golden vectors through it.
+# Compile the RTL to C++ with Yosys CXXRTL and run all golden vectors through it:
+# first the bare MAC unit (simd_mac.v), then the custom-0 decoder wrapper (simd_mac_wrapper.v).
 # Requires: yosys (or `pip install yowasp-yosys`, then YOSYS=yowasp-yosys), g++.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -13,3 +14,7 @@ if [ ! -d "$CXXRTL_INC" ]; then
 fi
 g++ -std=c++14 -O1 -I"$CXXRTL_INC" -I"$BUILD" hardware/tb/cxxrtl_cosim.cpp -o "$BUILD/cxxrtl_cosim"
 "$BUILD/cxxrtl_cosim" hardware/tb/golden_vectors.hex
+
+"$YOSYS" -q -p "read_verilog hardware/rtl/simd_mac.v hardware/rtl/simd_mac_wrapper.v; hierarchy -top simd_mac_wrapper; proc; flatten; write_cxxrtl $BUILD/simd_mac_wrapper_cxxrtl.cc"
+g++ -std=c++14 -O1 -I"$CXXRTL_INC" -I"$BUILD" hardware/tb/cxxrtl_cosim_wrapper.cpp -o "$BUILD/cxxrtl_cosim_wrapper"
+"$BUILD/cxxrtl_cosim_wrapper" hardware/tb/golden_vectors.hex

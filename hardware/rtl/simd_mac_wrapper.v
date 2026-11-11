@@ -5,8 +5,15 @@
 // Target:      RISC-V ISA Extension Opcode 0x0B (custom-0, 7'b0001011)
 //
 // Instruction Encoding (R-type):
-//   [ 31:25] funct7  - 7'b0000000: simd_mac (accumulate into rd)
-//                    - 7'b0000001: simd_mac_clr (clear acc, fresh dot product)
+//   [ 31:25] funct7  - 7'b0000000: simd_mac      rd = rd + dot4(rs1, rs2)   (reads rd: 3 source operands)
+//                    - 7'b0000001: simd_mac_clr  rd = dot4(rs1, rs2)
+//                    - 7'b0000010: simd_macc     acc = acc + dot4(rs1, rs2); rd = acc
+//                    - 7'b0000011: simd_macz     acc = dot4(rs1, rs2);       rd = acc
+//
+//   simd_macc / simd_macz keep the running total in the unit's own result register, so they
+//   read only rs1 and rs2. That fits cores with two register read ports and coprocessor
+//   interfaces such as PicoRV32's PCPI, which pass two source operands. The accumulator holds
+//   the result of the last MAC instruction and is kept while other instructions run.
 //   [ 24:20] rs2     - Source register 2 (Vector B packed INT8)
 //   [ 19:15] rs1     - Source register 1 (Vector A packed INT8)
 //   [ 14:12] funct3  - 3'b000
@@ -56,11 +63,15 @@ module simd_mac_wrapper (
     localparam [6:0] OPCODE_CUSTOM0 = 7'b0001011;
     localparam [6:0] FUNCT7_MAC     = 7'b0000000;  // simd_mac: accumulate
     localparam [6:0] FUNCT7_MAC_CLR = 7'b0000001;  // simd_mac_clr: clear then accumulate
+    localparam [6:0] FUNCT7_MACC    = 7'b0000010;  // simd_macc: accumulate into the internal total
+    localparam [6:0] FUNCT7_MACZ    = 7'b0000011;  // simd_macz: start a new internal total
 
     wire is_custom0  = (opcode == OPCODE_CUSTOM0) && (funct3 == 3'b000);
     wire is_mac_clr  = is_custom0 && (funct7 == FUNCT7_MAC_CLR);
     wire is_mac      = is_custom0 && (funct7 == FUNCT7_MAC);
-    wire insn_valid  = (is_mac || is_mac_clr) && req_valid;
+    wire is_macc     = is_custom0 && (funct7 == FUNCT7_MACC);
+    wire is_macz     = is_custom0 && (funct7 == FUNCT7_MACZ);
+    wire insn_valid  = (is_mac || is_mac_clr || is_macc || is_macz) && req_valid;
 
     // -------------------------------------------------------------------------
     // 3. SIMD MAC Core Instantiation
@@ -71,14 +82,19 @@ module simd_mac_wrapper (
     wire        valid_out_wire;
     wire        overflow_wire;
 
+    // Internal-accumulator forms feed the unit's own result register back into the adder,
+    // so the register file's rd value is not needed.
+    wire [31:0] acc_sel = (is_macc || is_macz) ? mac_out_wire : rd_val;
+    wire        clr_sel = is_mac_clr || is_macz;
+
     simd_mac u_simd_mac (
         .clk          (clk),
         .rst_n        (rst_n),
         .enable       (insn_valid),
         .rs1_data     (rs1_val),
         .rs2_data     (rs2_val),
-        .acc_in       (rd_val),
-        .clr_acc      (is_mac_clr),
+        .acc_in       (acc_sel),
+        .clr_acc      (clr_sel),
         .mac_out      (mac_out_wire),
         .valid_out    (valid_out_wire),
         .overflow_flag(overflow_wire)

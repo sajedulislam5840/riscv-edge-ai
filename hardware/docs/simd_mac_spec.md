@@ -131,6 +131,10 @@ The module interfaces to the CPU pipeline as an R-type instruction in the standa
 |:---|:---:|:---:|:---:|:---|:---|
 | `simd_mac rd, rs1, rs2` | `0001011` (`0x0B`) | `000` | `0000000` | $rd \leftarrow rd + \sum_{i=0}^3 a_i b_i$ | Accumulate with previous $rd$ |
 | `simd_mac_clr rd, rs1, rs2` | `0001011` (`0x0B`) | `000` | `0000001` | $rd \leftarrow 0 + \sum_{i=0}^3 a_i b_i$ | Clear accumulator & start new dot product |
+| `simd_macc rd, rs1, rs2` | `0001011` (`0x0B`) | `000` | `0000010` | $acc \leftarrow acc + \sum_{i=0}^3 a_i b_i;\ rd \leftarrow acc$ | Accumulate into the unit's internal total (reads only rs1, rs2) |
+| `simd_macz rd, rs1, rs2` | `0001011` (`0x0B`) | `000` | `0000011` | $acc \leftarrow \sum_{i=0}^3 a_i b_i;\ rd \leftarrow acc$ | Start a new internal total (reads only rs1, rs2) |
+
+**Why two accumulate forms.** `simd_mac` reads `rd` as a third source operand, which most small cores cannot supply: they have two register read ports, and coprocessor interfaces such as PicoRV32's PCPI pass only rs1 and rs2. `simd_macz` / `simd_macc` keep the running total in the unit's existing 32-bit result register by feeding it back into the adder, so they need only two operands. The cost, measured with Yosys and nextpnr on iCE40 UP5K, is one extra LUT (84 to 85) and no loss of clock speed (34-36 MHz before, 35-37 MHz after, three seeds). The total is held until the next MAC instruction, so other instructions can run in between; it is not saved on a context switch, which is fine for bare-metal firmware.
 
 ---
 

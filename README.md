@@ -33,6 +33,7 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | SIMD MAC RTL (`hardware/rtl/simd_mac.v`) + `custom-0` decoder wrapper | Done, synthesized and verified against golden vectors |
 | INT8 evaluation on the real MNIST test set (calibrated activations) | Done: 98.21% INT8 vs 98.23% FP32 |
 | Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,672 instructions per inference, outputs match the C++ engine |
+| Internal-accumulator instructions (`simd_macc` / `simd_macz`) for two-read-port cores | Done: wrapper verified on 25,088 instructions, costs 1 LUT and no Fmax |
 | Same firmware with the custom MAC instruction | In progress |
 | Integration of the MAC into a RISC-V core (PicoRV32) | Planned |
 | Technical report | Planned |
@@ -86,16 +87,20 @@ in one clock cycle: four 8x8 signed multipliers, a two-level adder tree, a 32-bi
 | Xilinx 7-series (`synth_xilinx`) | 4 DSP48E1 | 33 LUTs | 34 | 8 CARRY4 |
 | Lattice iCE40 UP5K (`synth_ice40 -dsp`) | 4 SB_MAC16 | 67 LUT4 | 34 | 31 SB_CARRY |
 
-**Post-route clock speed** (`hardware/scripts/fmax.sh`, nextpnr, three placement seeds). The unit is timed inside a harness with registered inputs and outputs, so the critical path is the unit's own: multipliers, adder tree and 32-bit accumulate in one cycle.
+**Post-route clock speed** (`hardware/scripts/fmax.sh`, nextpnr, three placement seeds). Each design is timed inside a harness with registered inputs and outputs, so the critical path is the design's own: for the unit, multipliers, adder tree and 32-bit accumulate in one cycle; for the wrapper, the instruction decoder in front of that.
 
-| FPGA | Fmax |
-|---|---|
-| Lattice iCE40 UP5K | 47.0 MHz (all three seeds) |
-| Lattice ECP5-25k | 64.3 to 68.7 MHz |
+| FPGA | MAC unit alone | Unit + custom-0 decoder (wrapper) |
+|---|---|---|
+| Lattice iCE40 UP5K | 47.0 MHz (all three seeds) | 35.3 to 36.7 MHz |
+| Lattice ECP5-25k | 64.3 to 68.7 MHz | 65.4 to 67.8 MHz |
+
+On iCE40 the decoder's opcode and funct7 checks add logic levels in front of the adder; a core that decodes in an earlier pipeline stage would hide most of that.
 
 Xilinx 7-series timing needs Vivado and has not been run. Pipelining the adder tree would raise Fmax at the cost of one cycle of latency; that is on the design-space list.
 
 **RTL verification:** `tests/gen_simd_vectors.cpp` takes the INT8 first-layer weights and a real MNIST test image and generates **25,088 test vectors**, one per instruction the firmware would issue: 128 neurons x 196 four-byte chunks, with the accumulator chained from chunk to chunk. It also checks, for every neuron, that the MAC's raw-byte result plus the folded zero-point term equals the engine's layer accumulator. The Verilog RTL, compiled to C++ with Yosys CXXRTL, matches on **all 25,088 vectors (0 mismatches)**. As a sanity check of the check itself, flipping one adder in the RTL produces 24,444 mismatches.
+
+The custom-0 wrapper is verified the same way, as a real instruction stream (`hardware/tb/cxxrtl_cosim_wrapper.cpp`): all 25,088 vectors issued as `simd_macz` / `simd_macc` with random garbage on the `rd` input and about 3,100 idle cycles and unrelated instructions mixed in, then again as `simd_mac_clr` / `simd_mac`. Both passes: **0 mismatches**. Breaking the accumulator feedback, or making `simd_macz` forget to clear, is caught (about 24,900 mismatches each).
 
 **ISA encoding** (R-type, opcode `0x0B` / `custom-0`):
 
@@ -103,6 +108,10 @@ Xilinx 7-series timing needs Vivado and has not been run. Pipelining the adder t
 |---|---|---|---|
 | `simd_mac` | `0000000` | `000` | `rd = rd + dot4(rs1, rs2)` |
 | `simd_mac_clr` | `0000001` | `000` | `rd = dot4(rs1, rs2)` |
+| `simd_macc` | `0000010` | `000` | `acc = acc + dot4(rs1, rs2); rd = acc` |
+| `simd_macz` | `0000011` | `000` | `acc = dot4(rs1, rs2); rd = acc` |
+
+`simd_macc` / `simd_macz` keep the running total inside the unit, so they read only two registers (see Design notes).
 
 **How the core talks to the unit** (`simd_mac_wrapper.v`, one-cycle latency, no stalls):
 
@@ -111,9 +120,9 @@ sequenceDiagram
     participant CPU as RISC-V core
     participant DEC as custom-0 decoder
     participant MAC as simd_mac
-    CPU->>DEC: instruction word + values of rs1, rs2, rd
+    CPU->>DEC: instruction word + values of rs1, rs2 (and rd for simd_mac)
     DEC->>DEC: check opcode 0x0B, funct3 000, read funct7
-    DEC->>MAC: enable, clr_acc = funct7[0]
+    DEC->>MAC: enable, clear = funct7[0], total from the unit if funct7[1] else from rd
     Note over MAC: 4 multiplies, adder tree, 32-bit add
     MAC-->>CPU: next cycle: result for rd + overflow flag
 ```
@@ -179,7 +188,7 @@ flowchart TD
 
 **How the MAC fits the quantized math.** The layer needs `sum((q_x - Z_x) * w)`, but the MAC multiplies raw signed bytes. With symmetric weights this splits into `sum(q_x * w) - Z_x * sum(w)`: the first term is exactly what the instruction computes, and the second is a constant per output neuron that is folded into the bias offline. The vector generator checks this identity for every neuron.
 
-**Why a stateless R-type instruction (and its limitation).** The accumulate form `simd_mac` reads three registers: `rs1`, `rs2` and the old value of `rd`. Most small RISC-V cores, including PicoRV32's PCPI coprocessor port, only provide two source operands. For core integration I plan to move the accumulator inside the unit (`clear` / `accumulate` / `read` instructions), which needs only two read ports. I'll document this decision in `hardware/docs/simd_mac_spec.md` when I make the change.
+**Two read ports, not three.** The original accumulate form `simd_mac` reads three registers: `rs1`, `rs2` and the old value of `rd`. Most small RISC-V cores have two register read ports, and PicoRV32's PCPI coprocessor interface passes only `rs1` and `rs2`. `simd_macc` / `simd_macz` solve this by keeping the running total in the unit's own 32-bit result register and feeding it back into the adder. No new register is needed: measured on iCE40 UP5K, the change costs one LUT (84 to 85) and no clock speed (34 to 36 MHz before, 35 to 37 MHz after). The total survives other instructions between MAC instructions but is not saved on a context switch, which suits bare-metal firmware. Details in `hardware/docs/simd_mac_spec.md`.
 
 **Overflow.** Four products of at most 2^14 in magnitude fit in 18 bits, so the adder tree cannot overflow. Only the 32-bit accumulator can, and the unit flags it.
 
@@ -254,7 +263,7 @@ include/engine/     tensor, quantization and kernel headers
 src/                FP32 ops and INT8 quantization engine
 tests/              unit tests + golden-vector generator for the RTL
 benchmarks/mnist/   training/export scripts, benchmark harness, trained model (.qbin)
-hardware/rtl/       simd_mac.v (datapath), simd_mac_wrapper.v (custom-0 decoder)
+hardware/rtl/       simd_mac.v (datapath), simd_mac_wrapper.v (custom-0 decoder, internal accumulator)
 hardware/tb/        Verilog testbenches, CXXRTL co-sim, golden vectors
 hardware/include/   C header for the custom instruction
 hardware/fpga/      timing harness for place-and-route

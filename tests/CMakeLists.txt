@@ -17,7 +17,10 @@ add_executable(test_quantize  test_quantize.cpp ${ENGINE_SOURCES})
 add_executable(test_stress    test_stress.cpp   ${ENGINE_SOURCES})
 
 # Register all tests with ctest
+add_executable(test_simd_isa  test_simd_isa.cpp)
+target_include_directories(test_simd_isa PRIVATE ${CMAKE_SOURCE_DIR}/hardware/include)
 add_test(NAME TensorSanityTest      COMMAND test_tensor)
+add_test(NAME SimdIsaModelTest      COMMAND test_simd_isa)
 add_test(NAME GemmCorrectnessTest   COMMAND test_gemm)
 add_test(NAME ReluActivationTest    COMMAND test_relu)
 add_test(NAME BiasAddTest           COMMAND test_bias_add)
