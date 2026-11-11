@@ -50,7 +50,7 @@
 <circle cx="610" cy="230.0" r="24" class="op pulse"/><text x="610" y="236.0" text-anchor="middle" class="t" style="font-size:22px">+</text>
 <text x="640" y="204.0" class="s">18-bit</text>
 <path d="M634 230.0 L716 230.0" class="flow"/>
-<rect x="690" y="92" width="96" height="40" rx="6" class="box"/><text x="738" y="110" text-anchor="middle" class="t">rd (old)</text><text x="738" y="125" text-anchor="middle" class="s">or 0 if clr</text>
+<rect x="670" y="90" width="136" height="44" rx="6" class="box"/><text x="738" y="109" text-anchor="middle" class="t">total in</text><text x="738" y="125" text-anchor="middle" class="s">rd, the unit, or 0</text>
 <path d="M740 132 L740 204.0" class="acc"/>
 <circle cx="740" cy="230.0" r="24" class="opa pulse"/><text x="740" y="236.0" text-anchor="middle" class="t" style="font-size:22px">+</text>
 <text x="770" y="274.0" class="s">32-bit</text>

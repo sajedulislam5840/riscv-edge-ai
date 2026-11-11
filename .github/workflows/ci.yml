@@ -45,7 +45,11 @@ jobs:
           python-version: "3.13"
       - run: pip install yowasp-yosys==0.70.0.0.post1259 yowasp-nextpnr-ice40==0.11.1.0.post826 yowasp-nextpnr-ecp5==0.11.1.0.post826
       - name: RTL co-simulation (25,088 golden vectors)
-        run: YOSYS=yowasp-yosys bash hardware/scripts/cosim.sh
+        run: |
+          set -o pipefail
+          mkdir -p build
+          YOSYS=yowasp-yosys bash hardware/scripts/cosim.sh | tee build/cosim.txt
+          python scripts/record_results.py --check
       - name: Synthesis resource report
         run: YOSYS=yowasp-yosys bash hardware/scripts/synth.sh
       - name: Post-route Fmax
@@ -67,5 +71,8 @@ jobs:
           echo "$HOME/.riscv-edge-ai-tools/bin" >> "$GITHUB_PATH"
       - name: Build and run on Spike
         run: |
+          set -o pipefail
           python3 firmware/gen_model_header.py
-          make -C firmware run
+          mkdir -p build
+          make -s -C firmware run | tee build/firmware_run.txt
+          python3 scripts/record_results.py --check

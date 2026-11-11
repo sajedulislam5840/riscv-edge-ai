@@ -250,7 +250,16 @@ python firmware/gen_model_header.py
 make -C firmware run
 ```
 
-CI runs all of the above on every push, and fails if the regenerated model, calibration constants or golden vectors differ from the committed ones.
+**Numbers on the web demo** come from `web/js/results.js`, written from the real command outputs:
+
+```bash
+make -s -C firmware run > build/firmware_run.txt
+bash hardware/scripts/cosim.sh > build/cosim.txt
+bash hardware/scripts/fmax.sh > build/fmax.txt      # optional
+python scripts/record_results.py
+```
+
+CI runs all of the above on every push, and fails if the regenerated model, calibration constants, golden vectors or web demo numbers differ from the committed ones.
 
 To retrain from scratch: `python benchmarks/mnist/train_and_export.py` (NumPy only), then run the export again.
 

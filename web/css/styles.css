@@ -186,6 +186,28 @@ input[type="range"] { width: min(420px, 100%); accent-color: var(--amber); }
 .facts dt { font-weight: 600; color: var(--text-strong); margin-bottom: 0.35rem; }
 .facts dd { margin: 0; color: var(--muted); font-size: 0.95rem; }
 
+.isa-title { margin-top: 3rem; }
+table.isa { width: min(760px, 100%); margin: 0.9rem 0 1rem; }
+table.isa th:last-child, table.isa td:last-child { text-align: left; font-family: var(--sans); }
+table.isa code, .log-panel code { font-family: var(--mono); color: var(--cyan); font-size: 0.9em; }
+.isa-note { color: var(--muted); }
+
+/* ------------------------------------------------------------ on RISC-V */
+.riscv-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 3rem; margin-top: 2rem; align-items: start; }
+.log-panel { margin: 0; background: var(--die); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.log-panel figcaption { padding: 0.75rem 1.1rem; border-bottom: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+.log-panel pre { margin: 0; padding: 1rem 1.1rem; font: 400 0.78rem/1.75 var(--mono); color: var(--text); overflow-x: auto; white-space: pre; }
+.speed h3 { margin-bottom: 1.25rem; }
+.speed-row { display: grid; grid-template-columns: 11rem 1fr 7.5rem; gap: 0.9rem; align-items: center; margin-bottom: 0.9rem; }
+.speed-label { font-size: 0.95rem; color: var(--text); }
+.speed-track { height: 12px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.speed-bar { display: block; height: 100%; background: var(--cyan); border-radius: 3px; }
+.speed-bar-mac { width: 0; background: var(--amber); }
+.speed-val { font: 500 0.95rem var(--mono); text-align: right; color: var(--text-strong); }
+#speed-mac:not(.is-measured) .speed-track { background: repeating-linear-gradient(90deg, var(--line) 0 8px, transparent 8px 14px); }
+#speed-mac:not(.is-measured) .speed-val { color: var(--muted); font-family: var(--sans); font-weight: 400; font-size: 0.875rem; }
+.speed .note { margin-top: 1.25rem; color: var(--muted); }
+
 /* ------------------------------------------------------------ results */
 table { border-collapse: collapse; width: min(640px, 100%); margin: 1.25rem 0 1.5rem; }
 caption { text-align: left; color: var(--muted); font-size: 0.9rem; padding-bottom: 0.75rem; caption-side: top; }
@@ -211,6 +233,7 @@ tr.highlight td { color: var(--amber); }
   .steps { grid-template-columns: repeat(2, 1fr); row-gap: 3rem; }
   .step:nth-child(2n) { margin-right: 0; }
   .precision-grid { grid-template-columns: 1fr; gap: 2rem; }
+  .riscv-grid { grid-template-columns: 1fr; gap: 2rem; }
 }
 @media (max-width: 720px) {
   main > section { padding: 3.25rem 0; }
@@ -222,5 +245,7 @@ tr.highlight td { color: var(--amber); }
   .step { margin-right: 0; padding-right: 0; }
   .facts { grid-template-columns: 1fr; gap: 1.25rem; }
   .hero-chip { padding: 1.1rem; }
+  .speed-row { grid-template-columns: 1fr 6.5rem; }
+  .speed-track { grid-column: 1 / -1; grid-row: 2; }
   .terminal { font-size: 0.72rem; }
 }

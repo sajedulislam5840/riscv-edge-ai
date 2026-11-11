@@ -13,6 +13,27 @@
   $("t-fp32").textContent = window.FP32_TEST_ACCURACY.toFixed(2) + "%";
   $("r-agree").textContent = window.QUANT_PARAMS.agreementWithFp32.toFixed(2) + "%";
 
+  // Measured results (web/js/results.js, written by scripts/record_results.py).
+  const RES = window.PROJECT_RESULTS || {};
+  document.querySelectorAll("[data-r]").forEach((el) => {
+    const parts = el.dataset.r.split(".");
+    let v = RES;
+    // keys such as "unit ice40-up5k" contain a space, so walk the path one level at a time
+    for (let i = 0; i < parts.length && v != null; i++) v = v[parts[i]];
+    if (v == null) return;
+    el.textContent = el.dataset.f === "mhz" ? Number(v).toFixed(1) : Number(v).toLocaleString("en");
+  });
+  if (RES.firmware) {
+    if (RES.firmware.log) $("spike-log").textContent = RES.firmware.log.join("\n");
+    $("ipm").textContent = (RES.firmware.instructionsPerInference / RES.firmware.macsPerInference).toFixed(1);
+    const mac = RES.firmware.macInstructionsPerInference;
+    if (mac) {
+      $("speed-mac-bar").style.width = (100 * mac / RES.firmware.instructionsPerInference).toFixed(1) + "%";
+      $("speed-mac-val").textContent = mac.toLocaleString("en");
+      $("speed-mac").classList.add("is-measured");
+    }
+  }
+
   // ---------------------------------------------------------------- drawing pad
   const pad = $("pad");
   const ctx = pad.getContext("2d", { willReadFrequently: true });
