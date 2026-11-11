@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" width="960" height="440" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">
 <style>
-.flow{fill:none;stroke:#38bdf8;stroke-width:2.2;stroke-dasharray:6 8;animation:dash 1.1s linear infinite}
-.acc{fill:none;stroke:#f59e0b;stroke-width:2.2;stroke-dasharray:6 8;animation:dash 1.1s linear infinite}
-.box{fill:#1e293b;stroke:#475569;stroke-width:1.2}
-.op{fill:#0b3a53;stroke:#38bdf8;stroke-width:1.6}
-.opa{fill:#3b2a08;stroke:#f59e0b;stroke-width:1.6}
-.t{fill:#e2e8f0;font-size:14px}
-.s{fill:#94a3b8;font-size:11px}
-.h{fill:#f8fafc;font-size:17px;font-weight:600}
+.flow{fill:none;stroke:#0E8C7A;stroke-width:2.2;stroke-dasharray:6 8;animation:dash 1.1s linear infinite}
+.acc{fill:none;stroke:#C7325F;stroke-width:2.2;stroke-dasharray:6 8;animation:dash 1.1s linear infinite}
+.box{fill:#FFFFFF;stroke:#C5CAD3;stroke-width:1.2}
+.op{fill:#DFF3EF;stroke:#0E8C7A;stroke-width:1.6}
+.opa{fill:#FBE4EB;stroke:#C7325F;stroke-width:1.6}
+.t{fill:#171A21;font-size:14px}
+.s{fill:#6B6F75;font-size:11px}
+.h{fill:#171A21;font-size:17px;font-weight:600}
 .pulse{animation:pulse 2.2s ease-in-out infinite}
 @keyframes dash{to{stroke-dashoffset:-28}}
 @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){.flow,.acc,.pulse{animation:none}}
 </style>
-<rect width="960" height="440" rx="14" fill="#0f172a"/>
+<rect width="960" height="440" rx="14" fill="#FFFFFF" stroke="#DDE0E6"/>
 <text x="32" y="40" class="h">simd_mac: 4-lane INT8 multiply-accumulate (RISC-V custom-0)</text>
 <text x="32" y="62" class="s">rs1 and rs2 each pack four signed 8-bit values; one instruction, one clock cycle</text>
 <rect x="32" y="92" width="62" height="36" rx="6" class="box"/><text x="63" y="115" text-anchor="middle" class="t">a0</text>

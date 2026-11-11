@@ -6,37 +6,28 @@
   const fp32 = Int8Engine.createFp32(window.TRAINED_WEIGHTS_B64);
   const $ = (id) => document.getElementById(id);
 
+  const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+
   // Published numbers come from the generated files, so the page never drifts from the code.
-  $("r-fp32").textContent = window.FP32_TEST_ACCURACY.toFixed(2) + "%";
-  $("r-int8").textContent = window.QUANT_PARAMS.int8TestAccuracy.toFixed(2) + "%";
-  $("t-int8").textContent = window.QUANT_PARAMS.int8TestAccuracy.toFixed(2) + "%";
-  $("t-fp32").textContent = window.FP32_TEST_ACCURACY.toFixed(2) + "%";
-  $("r-agree").textContent = window.QUANT_PARAMS.agreementWithFp32.toFixed(2) + "%";
+  setText("r-fp32", window.FP32_TEST_ACCURACY.toFixed(2) + "%");
+  setText("r-int8", window.QUANT_PARAMS.int8TestAccuracy.toFixed(2) + "%");
+  setText("r-agree", window.QUANT_PARAMS.agreementWithFp32.toFixed(2) + "%");
 
   // Measured results (web/js/results.js, written by scripts/record_results.py).
   const RES = window.PROJECT_RESULTS || {};
   document.querySelectorAll("[data-r]").forEach((el) => {
-    const parts = el.dataset.r.split(".");
     let v = RES;
     // keys such as "unit ice40-up5k" contain a space, so walk the path one level at a time
-    for (let i = 0; i < parts.length && v != null; i++) v = v[parts[i]];
+    for (const k of el.dataset.r.split(".")) { if (v == null) return; v = v[k]; }
     if (v == null) return;
     el.textContent = el.dataset.f === "mhz" ? Number(v).toFixed(1) : Number(v).toLocaleString("en");
   });
   if (RES.firmware) {
-    if (RES.firmware.log) $("spike-log").textContent = RES.firmware.log.join("\n");
-    // Hero: the firmware's own speed-up line, exactly as it printed it.
-    const line = (RES.firmware.log || []).find((l) => l.startsWith("with simd_macz/simd_macc:"));
-    if (line) {
-      const m = line.match(/^(.*instructions, )(.*)$/);
-      $("t-fw").innerHTML = "";
-      $("t-fw").append(m ? m[1] : line);
-      if (m) { const b = document.createElement("b"); b.textContent = m[2]; $("t-fw").append(b); }
-    }
-    $("ipm").textContent = (RES.firmware.instructionsPerInference / RES.firmware.macsPerInference).toFixed(1);
+    if (RES.firmware.log) setText("spike-log", RES.firmware.log.join("\n"));
+    setText("ipm", (RES.firmware.instructionsPerInference / RES.firmware.macsPerInference).toFixed(1));
     const base = RES.firmware.instructionsPerInference;
     const showBar = (row, value) => {
-      if (!value) return;
+      if (!value || !$(row)) return;
       $(row + "-bar").style.width = (100 * value / base).toFixed(1) + "%";
       $(row + "-val").textContent = value.toLocaleString("en");
       $(row).classList.add("is-measured");
@@ -44,9 +35,7 @@
     showBar("speed-clr", RES.firmware.macClrAddInstructionsPerInference);
     showBar("speed-mac", RES.firmware.macInstructionsPerInference);
     if (RES.firmware.macInstructionsPerInference) {
-      const x = (base / RES.firmware.macInstructionsPerInference).toFixed(2);
-      $("speedup-int").textContent = x;
-      $("speedup-int-2").textContent = x;
+      setText("speedup-int", (base / RES.firmware.macInstructionsPerInference).toFixed(2));
     }
   }
 

@@ -3,311 +3,131 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>riscv-edge-ai: a neural network on 8-bit integers</title>
+  <title>riscv-edge-ai — a neural network on eight-bit integers</title>
   <meta name="description"
-    content="Draw a digit and watch a neural network classify it twice: with floating-point math, and with 8-bit integers only, as a small RISC-V chip would." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230e1726'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='monospace' font-size='16' fill='%23f5a524'%3E8%3C/text%3E%3C/svg%3E" />
+    content="An integer-only neural network for small RISC-V chips, and the custom instruction that makes it five times faster. Draw a digit and watch it run." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171A21'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Arial,sans-serif' font-weight='700' font-size='17' fill='%23F4F5F7'%3E8%3C/text%3E%3C/svg%3E" />
+  <meta name="theme-color" content="#F4F5F7" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" />
-  <link rel="stylesheet" href="css/styles.css?v=5" />
-  <meta name="theme-color" content="#0e1726" />
+    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="css/styles.css?v=9" />
 </head>
 
-<body>
-  <header class="site-header">
-    <a class="wordmark" href="#top">riscv-edge-ai</a>
-    <nav aria-label="Sections">
-      <a href="#how">How it works</a>
-      <a href="#precision">Precision</a>
-      <a href="#hardware">Hardware</a>
-      <a href="#riscv">On RISC-V</a>
-      <a href="#results">Results</a>
+<body class="landing">
+  <header class="topbar">
+    <a class="wordmark" href="./">riscv-edge-ai</a>
+    <nav aria-label="Primary">
+      <a href="demo.html">Open the demo</a>
       <a href="https://github.com/sajedulislam5840/riscv-edge-ai">Code on GitHub</a>
     </nav>
   </header>
 
-  <main id="top">
-
-    <section class="hero" aria-labelledby="title">
-      <div class="hero-text">
-        <h1 id="title">Four multiplies.<br />One instruction.</h1>
-        <p class="lede">
-          An integer-only neural network for small RISC-V chips, and the custom instruction I designed
-          to speed it up. Draw a digit below and watch both versions run: ordinary floating-point math,
-          and 8-bit integers only, exactly as the project's C++ engine computes them.
-        </p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="#demo">Draw a digit</a>
-          <a class="btn btn-secondary" href="https://github.com/sajedulislam5840/riscv-edge-ai">Read the code</a>
-        </div>
+  <main>
+    <section class="cover" aria-labelledby="cover-title">
+      <div class="cover-text">
+      <p class="cover-kicker">An open hardware and software project by Sajedul Islam</p>
+      <h1 id="cover-title">A neural network that runs on eight‑bit integers,<br />and the RISC‑V instruction that makes it five times faster.</h1>
+      <p class="cover-lede">
+        Small chips without a floating‑point unit can still run AI. This project takes a handwritten‑digit
+        network all the way down: from training, to integer‑only arithmetic, to a multiply‑accumulate unit in
+        Verilog, to firmware running on a simulated RISC‑V processor. Every step is checked against the one before it.
+      </p>
+      <div class="cover-actions">
+        <a class="btn btn-ink" href="demo.html#draw">Draw a digit and watch it run</a>
+        <a class="btn btn-ghost" href="#map">See what is inside</a>
       </div>
-
-      <figure class="hero-chip">
-        <svg viewBox="0 0 520 284" role="img" aria-label="Animated datapath: four pairs of bytes are multiplied in parallel, summed, and added to a running total">
-          <g class="regs">
-            <rect x="0" y="14" width="44" height="30" rx="5"></rect><text x="22" y="34">a0</text>
-            <rect x="52" y="14" width="44" height="30" rx="5"></rect><text x="74" y="34">b0</text>
-            <rect x="0" y="84" width="44" height="30" rx="5"></rect><text x="22" y="104">a1</text>
-            <rect x="52" y="84" width="44" height="30" rx="5"></rect><text x="74" y="104">b1</text>
-            <rect x="0" y="154" width="44" height="30" rx="5"></rect><text x="22" y="174">a2</text>
-            <rect x="52" y="154" width="44" height="30" rx="5"></rect><text x="74" y="174">b2</text>
-            <rect x="0" y="224" width="44" height="30" rx="5"></rect><text x="22" y="244">a3</text>
-            <rect x="52" y="224" width="44" height="30" rx="5"></rect><text x="74" y="244">b3</text>
-            <rect x="478" y="114" width="42" height="40" rx="6"></rect><text x="499" y="139">rd</text>
-          </g>
-          <g class="wire">
-            <path d="M96 29 H150"></path><path d="M96 99 H150"></path><path d="M96 169 H150"></path><path d="M96 239 H150"></path>
-            <path d="M190 29 C240 29 240 64 290 64"></path><path d="M190 99 C240 99 240 64 290 64"></path>
-            <path d="M190 169 C240 169 240 204 290 204"></path><path d="M190 239 C240 239 240 204 290 204"></path>
-            <path d="M330 64 C370 64 370 134 400 134"></path><path d="M330 204 C370 204 370 134 400 134"></path>
-          </g>
-          <path class="wire wire-acc" d="M440 134 H478"></path>
-          <g class="op">
-            <circle cx="170" cy="29" r="20"></circle><circle cx="170" cy="99" r="20"></circle><circle cx="170" cy="169" r="20"></circle><circle cx="170" cy="239" r="20"></circle>
-            <circle cx="310" cy="64" r="20"></circle><circle cx="310" cy="204" r="20"></circle>
-          </g>
-          <circle class="op op-acc" cx="420" cy="134" r="20"></circle>
-          <g class="sym">
-            <text x="170" y="35">×</text><text x="170" y="105">×</text><text x="170" y="175">×</text><text x="170" y="245">×</text>
-            <text x="310" y="70">+</text><text x="310" y="210">+</text><text x="420" y="140">+</text>
-          </g>
+      </div>
+      <figure class="lanes" aria-label="Four pairs of bytes multiplied at the same time and summed into one total, in one instruction">
+        <svg viewBox="0 0 520 360" role="img" aria-label="Animated: four coloured lanes, one multiply each, merging into one running total">
+          <g class="lane l1"><rect x="0" y="22" width="92" height="40" rx="10"/><text x="46" y="47">a0 · b0</text><path class="wire" d="M92 42 H160"/><circle cx="182" cy="42" r="22"/><text class="op" x="182" y="49">×</text><path class="wire" d="M204 42 C270 42 270 180 330 180"/></g>
+          <g class="lane l2"><rect x="0" y="110" width="92" height="40" rx="10"/><text x="46" y="135">a1 · b1</text><path class="wire" d="M92 130 H160"/><circle cx="182" cy="130" r="22"/><text class="op" x="182" y="137">×</text><path class="wire" d="M204 130 C262 130 270 180 330 180"/></g>
+          <g class="lane l3"><rect x="0" y="210" width="92" height="40" rx="10"/><text x="46" y="235">a2 · b2</text><path class="wire" d="M92 230 H160"/><circle cx="182" cy="230" r="22"/><text class="op" x="182" y="237">×</text><path class="wire" d="M204 230 C262 230 270 180 330 180"/></g>
+          <g class="lane l4"><rect x="0" y="298" width="92" height="40" rx="10"/><text x="46" y="323">a3 · b3</text><path class="wire" d="M92 318 H160"/><circle cx="182" cy="318" r="22"/><text class="op" x="182" y="325">×</text><path class="wire" d="M204 318 C270 318 270 180 330 180"/></g>
+          <g class="sum"><circle cx="356" cy="180" r="28"/><text class="op" x="356" y="189">+</text><path class="wire" d="M384 180 H420"/><rect x="420" y="150" width="100" height="60" rx="12"/><text x="470" y="176">running</text><text x="470" y="196">total</text></g>
         </svg>
-        <figcaption class="terminal" aria-label="Output of the project's own test commands">
-          <span class="cmd">bash hardware/scripts/cosim.sh</span>
-          <span class="out">RTL vectors: 25088  mismatches: 0</span>
-          <span class="cmd">./build/mnist_benchmark</span>
-          <span class="out">INT8, integers only   <b id="t-int8">98.21%</b>   FP32 <span id="t-fp32">98.23%</span></span>
-          <span class="cmd">make -C firmware run</span>
-          <span class="out" id="t-fw">with simd_macz/simd_macc: 162869 instructions, <b>5.03x fewer</b></span>
-        </figcaption>
+        <figcaption>One instruction: four 8‑bit multiplies, one sum, one clock cycle.</figcaption>
       </figure>
     </section>
 
-    <section class="demo" id="demo" aria-label="Live demo">
-      <div class="pad">
-        <canvas id="pad" width="280" height="280" aria-label="Drawing area: draw a digit from 0 to 9"></canvas>
-        <div class="pad-actions">
-          <button type="button" id="btn-clear">Clear</button>
-          <button type="button" id="btn-example">Load a test image</button>
-        </div>
-        <p class="hint" id="pad-hint">Draw one digit, large, in the middle of the box.</p>
-      </div>
-
-      <div class="verdict" aria-live="polite">
-        <div class="answer">
-          <span class="answer-digit" id="answer-digit">?</span>
-          <p class="answer-text" id="answer-text">Waiting for a drawing.</p>
-        </div>
-        <div class="bars" id="bars" role="img" aria-label="Confidence for each digit"></div>
-        <p class="legend">
-          <span class="legend-item"><span class="key key-fp32"></span>Floating point (32-bit)</span>
-          <span class="legend-item"><span class="key key-int8"></span>Integers only (8-bit)</span>
-        </p>
-      </div>
-    </section>
-
-    <section id="how" class="how" aria-labelledby="how-title">
-      <h2 id="how-title">What happens to your drawing</h2>
-      <p class="section-intro">Each step below updates live as you draw.</p>
-
-      <ol class="steps">
-        <li class="step">
-          <h3>The drawing becomes 28 × 28 pixels</h3>
-          <p>
-            The network was trained on MNIST, a set of 70,000 handwritten digits, each 28 pixels
-            square. Your drawing is cropped, scaled and centred the same way.
-          </p>
-          <canvas id="viz-pixels" class="viz viz-pixels" width="28" height="28" aria-label="Your drawing at 28 by 28 pixels"></canvas>
+    <section id="map" class="map" aria-labelledby="map-title">
+      <h2 id="map-title">Five stages, one pipeline</h2>
+      <p class="map-intro">Each stage has its own colour throughout the site. Open any of them.</p>
+      <ol class="stages">
+        <li class="stage s1">
+          <a href="demo.html#how">
+            <span class="stage-n">1</span>
+            <span class="stage-title">Train</span>
+            <span class="stage-text">A 784‑128‑10 network trained on 70,000 handwritten digits, in plain NumPy.</span>
+            <span class="stage-num"><b data-q="fp32">98.23%</b> accuracy in floating point</span>
+          </a>
         </li>
-
-        <li class="step">
-          <h3>Each pixel becomes a signed byte</h3>
-          <p>
-            A pixel's brightness, 0 to 255, is stored as brightness − 128, a number from −128 to 127
-            that fits in 8 bits. Here is the middle row of your image as the chip would hold it:
-          </p>
-          <p class="bytes" id="viz-bytes" aria-label="Middle row of the image as signed bytes"></p>
+        <li class="stage s2">
+          <a href="demo.html#precision">
+            <span class="stage-n">2</span>
+            <span class="stage-title">Quantize</span>
+            <span class="stage-text">Every weight and activation becomes a signed byte. The model shrinks four times.</span>
+            <span class="stage-num"><b data-q="int8">98.21%</b> with integers only</span>
+          </a>
         </li>
-
-        <li class="step">
-          <h3>128 neurons multiply and add</h3>
-          <p>
-            Each neuron multiplies all 784 bytes by its own 784 learned weights and adds them up:
-            100,352 multiplications for this layer alone. Integer results are scaled back into
-            8 bits with an integer multiply and shift. Bright squares are neurons that respond to
-            your drawing.
-          </p>
-          <div class="neurons" id="viz-neurons" role="img" aria-label="Activity of the 128 hidden neurons"></div>
-          <p class="readout" id="neuron-readout">Point at a square to see its value.</p>
+        <li class="stage s3">
+          <a href="demo.html#draw">
+            <span class="stage-n">3</span>
+            <span class="stage-title">Compute</span>
+            <span class="stage-text">The integer engine in C++, ported to this page byte for byte. Draw and watch it think.</span>
+            <span class="stage-num"><b>100,352</b> multiplications per digit, live</span>
+          </a>
         </li>
-
-        <li class="step">
-          <h3>Ten scores, one answer</h3>
-          <p>
-            A second layer turns the 128 neuron values into one score per digit. The highest score
-            wins. These are the 8-bit scores the integer network produced:
-          </p>
-          <div class="scores" id="viz-scores"></div>
+        <li class="stage s4">
+          <a href="demo.html#hardware">
+            <span class="stage-n">4</span>
+            <span class="stage-title">Silicon</span>
+            <span class="stage-text">A four‑lane multiply‑accumulate unit in Verilog, on RISC‑V's custom‑0 opcode.</span>
+            <span class="stage-num"><b data-r="cosim.unitMismatches">0</b> mismatches on <span data-r="cosim.unitVectors">25,088</span> vectors · <span data-r="fmax.unit ice40-up5k.max" data-f="mhz">47.0</span> MHz</span>
+          </a>
+        </li>
+        <li class="stage s5">
+          <a href="demo.html#riscv">
+            <span class="stage-n">5</span>
+            <span class="stage-title">RISC‑V</span>
+            <span class="stage-text">Bare‑metal firmware on the Spike simulator, with and without the new instructions.</span>
+            <span class="stage-num"><b id="map-speedup">5.03×</b> fewer instructions per digit</span>
+          </a>
         </li>
       </ol>
     </section>
 
-    <section id="precision" class="precision" aria-labelledby="precision-title">
-      <h2 id="precision-title">How few bits can a weight have?</h2>
-      <div class="precision-grid">
-        <div>
-          <p>
-            Storing weights in 8 bits instead of 32 makes the model four times smaller
-            (102 KB instead of 407 KB) and lets a small chip use cheap integer arithmetic.
-            Push it further and the network eventually stops working. Try it on your drawing:
-          </p>
-          <label class="slider-label" for="bits">Weight precision: <output id="bits-out">8 bits</output></label>
-          <input type="range" id="bits" min="2" max="8" step="1" value="8" />
-          <p class="bits-result" id="bits-result"></p>
-          <p class="note">This experiment rounds the weights only and keeps the rest in floating point.</p>
+    <section class="proof" aria-labelledby="proof-title">
+      <h2 id="proof-title">Numbers you can rerun</h2>
+      <div class="proof-grid">
+        <div class="proof-item">
+          <span class="proof-big p2" data-q="int8">98.21%</span>
+          <span class="proof-label">integer‑only accuracy on the 10,000‑image MNIST test set, against <span data-q="fp32">98.23%</span> in floating point</span>
         </div>
-        <figure class="bit-chart">
-          <figcaption>Accuracy on the 10,000 MNIST test images</figcaption>
-          <div id="bit-chart" class="bit-rows"></div>
-        </figure>
-      </div>
-    </section>
-
-    <section id="hardware" class="hardware" aria-labelledby="hardware-title">
-      <h2 id="hardware-title">The hardware: four multiplications per instruction</h2>
-      <p class="section-intro">
-        Almost all the work in step 3 is multiply-and-add. A plain 32-bit RISC-V core multiplies one
-        pair of numbers per instruction, but four 8-bit values fit in one 32-bit register. So I
-        designed a unit, in Verilog, that multiplies four pairs at once and adds them to a running
-        total in a single instruction, using an opcode RISC-V reserves for custom extensions.
-      </p>
-      <div class="datapath-scroll">
-        <img class="datapath" src="assets/simd_mac_datapath.svg" width="960" height="440"
-          alt="Datapath: four pairs of 8-bit inputs are multiplied in parallel, summed by an adder tree, and added to a 32-bit accumulator." />
-      </div>
-      <dl class="facts">
-        <div>
-          <dt>Verified</dt>
-          <dd><span data-r="cosim.unitVectors">25,088</span> test instructions from a real MNIST image, with
-            <span data-r="cosim.unitMismatches">0</span> mismatches between the Verilog and the software model.
-            The instruction decoder was checked on the same stream with
-            <span data-r="cosim.wrapperIdleCycles">3,115</span> unrelated cycles mixed in:
-            <span data-r="cosim.wrapperMismatches">0</span> mismatches.</dd>
+        <div class="proof-item">
+          <span class="proof-big p4"><span data-r="cosim.unitVectors">25,088</span></span>
+          <span class="proof-label">instructions from a real test image run through the Verilog, with <span data-r="cosim.unitMismatches">0</span> mismatches</span>
         </div>
-        <div>
-          <dt>Size and speed on an FPGA</dt>
-          <dd>4 DSP blocks, 33 lookup tables and 34 flip-flops on a Xilinx 7-series chip. After place and route:
-            up to <span data-r="fmax.unit ice40-up5k.max" data-f="mhz">47.0</span> MHz on a Lattice iCE40 UP5K and
-            <span data-r="fmax.unit ecp5-25k.max" data-f="mhz">68.7</span> MHz on a Lattice ECP5.</dd>
-        </div>
-        <div>
-          <dt>Measured speed-up</dt>
-          <dd><span id="speedup-int">5.03</span>× fewer instructions to classify a digit on a simulated RISC-V chip,
-            with every output byte unchanged (below).</dd>
-        </div>
-      </dl>
-
-      <h3 class="isa-title">The instructions</h3>
-      <table class="isa">
-        <thead><tr><th scope="col">Instruction</th><th scope="col">What it does</th></tr></thead>
-        <tbody>
-          <tr><td><code>simd_macz</code></td><td>Multiplies four pairs and starts a new running total</td></tr>
-          <tr><td><code>simd_macc</code></td><td>Multiplies four more pairs and adds them to the total</td></tr>
-          <tr><td><code>simd_mac_clr</code>, <code>simd_mac</code></td><td>The first versions; <code>simd_mac</code> reads the total from a third register</td></tr>
-        </tbody>
-      </table>
-      <p class="isa-note">
-        A small processor reads two registers per instruction, not three. So the newer pair keeps the
-        running total inside the unit, in the register that already holds its result. Measured on the
-        iCE40: one extra logic cell, and no loss of clock speed.
-      </p>
-    </section>
-
-    <section id="riscv" class="riscv" aria-labelledby="riscv-title">
-      <h2 id="riscv-title">Running on a RISC-V chip</h2>
-      <p class="section-intro">
-        The same integer network, compiled as bare-metal C for a 32-bit RISC-V processor (RV32IM) and run
-        on Spike, the reference RISC-V simulator: no operating system, no floating point, no standard
-        library. The firmware checks every output byte against the C++ engine.
-      </p>
-      <div class="riscv-grid">
-        <figure class="log-panel">
-          <figcaption><code>make -C firmware run</code></figcaption>
-          <pre id="spike-log">riscv-edge-ai: bare-metal INT8 MNIST on RV32IM (scalar baseline)
-one inference: 818683 instructions
-RESULT: all outputs match the C++ engine</pre>
-        </figure>
-        <div class="speed">
-          <h3>Instructions to classify one digit</h3>
-          <div class="speed-row">
-            <span class="speed-label">Plain RV32IM</span>
-            <span class="speed-track"><span class="speed-bar" style="width:100%"></span></span>
-            <span class="speed-val" data-r="firmware.instructionsPerInference">818,683</span>
-          </div>
-          <div class="speed-row" id="speed-clr">
-            <span class="speed-label">With <code>simd_mac_clr</code> + add</span>
-            <span class="speed-track"><span class="speed-bar speed-bar-mac" id="speed-clr-bar"></span></span>
-            <span class="speed-val" id="speed-clr-val">being measured</span>
-          </div>
-          <div class="speed-row" id="speed-mac">
-            <span class="speed-label">With <code>simd_macz</code> / <code>simd_macc</code></span>
-            <span class="speed-track"><span class="speed-bar speed-bar-mac" id="speed-mac-bar"></span></span>
-            <span class="speed-val" id="speed-mac-val">being measured</span>
-          </div>
-          <p class="note">
-            <span data-r="firmware.macsPerInference">101,632</span> multiply-accumulates per digit, so plain
-            RV32IM needs about <span id="ipm">8.1</span> instructions for each one. With the new instructions the
-            inner loop does four of them in six instructions: two loads, the MAC, two pointer steps and the
-            loop branch. Spike counts instructions, not clock cycles; cycle-accurate numbers come from running
-            the firmware on a real RISC-V core in simulation, the next step.
-          </p>
+        <div class="proof-item">
+          <span class="proof-big p5" id="proof-speedup">5.03×</span>
+          <span class="proof-label">fewer instructions to classify a digit with the custom instructions: <span data-r="firmware.macInstructionsPerInference">162,869</span> instead of <span data-r="firmware.instructionsPerInference">818,683</span></span>
         </div>
       </div>
-    </section>
-
-    <section id="results" class="results" aria-labelledby="results-title">
-      <h2 id="results-title">Results so far</h2>
-      <table>
-        <caption>MNIST test set, 10,000 images. Activation scales were calibrated on training images only.</caption>
-        <thead>
-          <tr><th scope="col">Version</th><th scope="col">Accuracy</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Floating point (32-bit)</td><td class="num" id="r-fp32">98.23%</td></tr>
-          <tr><td>8-bit weights, floating-point activations</td><td class="num">98.23%</td></tr>
-          <tr class="highlight"><td>Integers only, end to end</td><td class="num" id="r-int8">98.21%</td></tr>
-        </tbody>
-      </table>
-      <p>
-        The two versions pick the same digit on <span id="r-agree">99.84%</span> of test images.
-        The integer pipeline in this page reproduces the C++ engine byte for byte on all 10,000 of them.
+      <p class="proof-note">
+        Every number on this site is read from files the project's own code writes, and the repository's
+        tests fail if they drift. <a href="https://github.com/sajedulislam5840/riscv-edge-ai#reproduce">How to reproduce them</a>.
       </p>
-
-      <h3 class="status-title">Project status</h3>
-      <ul class="status">
-        <li><span class="tag tag-done">Done</span>INT8 engine, calibration and test-set evaluation</li>
-        <li><span class="tag tag-done">Done</span>Four-way multiply-accumulate unit in Verilog, synthesised and verified</li>
-        <li><span class="tag tag-done">Done</span>The whole network running bare-metal on a simulated RISC-V chip: <span data-r="firmware.instructionsPerInference">818,683</span> instructions per digit, same outputs as the C++ engine</li>
-        <li><span class="tag tag-done">Done</span>Instructions that keep the running total inside the unit, so a two-port processor can use them</li>
-        <li><span class="tag tag-done">Done</span>The same firmware with the custom instructions: <span data-r="firmware.macInstructionsPerInference">162,869</span> instructions per digit, <span id="speedup-int-2">5.03</span>× fewer, identical outputs</li>
-        <li><span class="tag tag-next">Next</span>The unit attached to a real RISC-V core (PicoRV32), for cycle-accurate numbers</li>
-        <li><span class="tag tag-later">Later</span>A short technical report</li>
-      </ul>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <p>By Sajedul Islam. Source code, tests and hardware:
-      <a href="https://github.com/sajedulislam5840/riscv-edge-ai">github.com/sajedulislam5840/riscv-edge-ai</a></p>
+  <footer class="foot">
+    <p>Sajedul Islam · <a href="https://github.com/sajedulislam5840/riscv-edge-ai">github.com/sajedulislam5840/riscv-edge-ai</a> · MIT licence</p>
   </footer>
 
-  <script src="js/weights.js?v=4"></script>
-  <script src="js/model_int8.js?v=4"></script>
-  <script src="js/quant_params.js?v=4"></script>
-  <script src="js/results.js?v=6"></script>
-  <script src="js/int8_engine.js?v=4"></script>
-  <script src="js/app.js?v=7"></script>
+  <script src="js/quant_params.js?v=8"></script>
+  <script src="js/model_int8.js?v=8"></script>
+  <script src="js/results.js?v=8"></script>
+  <script src="js/landing.js?v=8"></script>
 </body>
 </html>

@@ -14,7 +14,9 @@ Live: https://sajedulislam5840.github.io/riscv-edge-ai/
   bit-width table, written by `benchmarks/mnist/export_model_and_data.py`
 - `js/quant_params.js`: calibrated scales and requantization constants, written by `mnist_benchmark`
 - `js/int8_engine.js`: integer inference and the FP32 reference
-- `js/app.js`: drawing pad, preprocessing and the page's live views
+- `index.html` + `js/landing.js`: the landing page (overview, five stages, headline numbers)
+- `demo.html` + `js/app.js`: the interactive demo (drawing pad, preprocessing, every step live, precision experiment, hardware and RISC-V results)
+- `js/results.js`: measured firmware, co-simulation and Fmax results, written by `scripts/record_results.py`
 
 ## Run locally
 
