@@ -13,6 +13,8 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 </p>
 
 <p align="center">
+  <a href="https://github.com/sajedulislam5840/riscv-edge-ai/actions/workflows/ci.yml"><img src="https://github.com/sajedulislam5840/riscv-edge-ai/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <br/>
   <a href="https://sajedulislam5840.github.io/riscv-edge-ai/"><b>Live demo</b></a> ·
   <a href="#verified-results">Results</a> ·
   <a href="#how-it-fits-together">Architecture</a> ·
@@ -30,7 +32,8 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | INT8 quantization library (affine, per-channel, Q31 requantization, BN folding, pooling, `.qbin` format) | Done, unit tested on host |
 | SIMD MAC RTL (`hardware/rtl/simd_mac.v`) + `custom-0` decoder wrapper | Done, synthesized and verified against golden vectors |
 | INT8 evaluation on the real MNIST test set (calibrated activations) | Done: 98.21% INT8 vs 98.23% FP32 |
-| Bare-metal RV32IM firmware + cycle counts on Spike | In progress |
+| Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,672 instructions per inference, outputs match the C++ engine |
+| Same firmware with the custom MAC instruction | In progress |
 | Integration of the MAC into a RISC-V core (PicoRV32) | Planned |
 | Technical report | Planned |
 
@@ -50,13 +53,14 @@ flowchart LR
     E --> G{"CXXRTL co-sim<br/>bit-exact?"}
     D --> G
     G -->|"0 mismatches"| H["Verified"]
-    B -.-> I["RV32IM firmware on Spike<br/>in progress"]
-    I -.-> J["PicoRV32 + MAC in RTL<br/>planned"]
+    B --> I["RV32IM firmware on Spike<br/>scalar baseline, bit-exact"]
+    I -.-> J2["Firmware with the MAC<br/>instruction, in progress"]
+    J2 -.-> J["PicoRV32 + MAC in RTL<br/>planned"]
 
     classDef done fill:#0b3a53,stroke:#38bdf8,color:#e2e8f0
     classDef todo fill:#1e293b,stroke:#64748b,color:#94a3b8,stroke-dasharray:4 3
-    class A,B,C,D,E,F,G,H done
-    class I,J todo
+    class A,B,C,D,E,F,G,H,I done
+    class J2,J todo
 ```
 
 Solid boxes are done and verified; dashed boxes are in progress or planned.
@@ -75,14 +79,21 @@ rd = (clear ? 0 : rd) + a0*b0 + a1*b1 + a2*b2 + a3*b3
 
 in one clock cycle: four 8x8 signed multipliers, a two-level adder tree, a 32-bit accumulator and an overflow flag.
 
-**Synthesis (Yosys, no placement/routing yet):**
+**Synthesis (Yosys):**
 
 | Target | Multipliers | Logic | Flip-flops | Carry |
 |---|---|---|---|---|
 | Xilinx 7-series (`synth_xilinx`) | 4 DSP48E1 | 33 LUTs | 34 | 8 CARRY4 |
 | Lattice iCE40 UP5K (`synth_ice40 -dsp`) | 4 SB_MAC16 | 67 LUT4 | 34 | 31 SB_CARRY |
 
-Fmax has not been measured yet. That needs a place-and-route run (nextpnr / Vivado), which is on the to-do list.
+**Post-route clock speed** (`hardware/scripts/fmax.sh`, nextpnr, three placement seeds). The unit is timed inside a harness with registered inputs and outputs, so the critical path is the unit's own: multipliers, adder tree and 32-bit accumulate in one cycle.
+
+| FPGA | Fmax |
+|---|---|
+| Lattice iCE40 UP5K | 47.0 MHz (all three seeds) |
+| Lattice ECP5-25k | 64.3 to 68.7 MHz |
+
+Xilinx 7-series timing needs Vivado and has not been run. Pipelining the adder tree would raise Fmax at the cost of one cycle of latency; that is on the design-space list.
 
 **RTL verification:** `tests/gen_simd_vectors.cpp` takes the INT8 first-layer weights and a real MNIST test image and generates **25,088 test vectors**, one per instruction the firmware would issue: 128 neurons x 196 four-byte chunks, with the accumulator chained from chunk to chunk. It also checks, for every neuron, that the MAC's raw-byte result plus the folded zero-point term equals the engine's layer accumulator. The Verilog RTL, compiled to C++ with Yosys CXXRTL, matches on **all 25,088 vectors (0 mismatches)**. As a sanity check of the check itself, flipping one adder in the RTL produces 24,444 mismatches.
 
@@ -132,7 +143,18 @@ INT8 and FP32 predict the same class on 99.84% of test images (9,984 of 10,000).
 
 Weights are quantized symmetrically (zero point 0, per tensor), which is what the MAC unit assumes. An asymmetric export of the same weights reaches 98.20%, so symmetric quantization costs nothing here.
 
-Speed numbers will be reported as RISC-V cycle counts (Spike, then RTL simulation), not as x86 host timings. Host timings say nothing about the target hardware.
+### Bare-metal RV32IM firmware
+
+`firmware/` runs the whole network on a simulated RV32IM processor (Spike): freestanding C, integer-only, no heap, no standard library, weights compiled in as constant arrays. On the ten example test images (one per digit) it predicts every label correctly, and every output byte matches the C++ engine; the firmware checks this itself and exits with an error otherwise.
+
+| Measurement (scalar RV32IM, `-O2`) | Value |
+|---|---|
+| Instructions per inference | 818,672 |
+| Multiply-accumulates per inference | 101,632 |
+| Instructions per multiply-accumulate | about 8.1 |
+| Code + model size | 112 KB |
+
+Spike executes one instruction per step, so its `rdcycle` equals `rdinstret`: these are exact instruction counts, not pipeline-accurate cycle counts. Cycle-accurate numbers come from running the same firmware on a RISC-V core in RTL simulation (roadmap step 3). The next measurement is the same firmware using the custom MAC instruction.
 
 ---
 
@@ -169,11 +191,12 @@ Each layer is checked against the one before it, so an error cannot hide between
 
 ```mermaid
 flowchart LR
-    P["PyTorch FP32 model"] --> C["C++ FP32 kernels<br/>unit tests"]
+    P["NumPy FP32 model"] --> C["C++ FP32 kernels<br/>unit tests"]
     C --> Q["C++ INT8 engine<br/>unit + stress tests"]
     Q --> G["C++ golden model<br/>of simd_mac"]
     G --> R["Verilog RTL<br/>25,088 vectors, 0 mismatches"]
-    R -.-> S["Spike ISS cycle counts<br/>in progress"]
+    Q --> F2["Bare-metal firmware on Spike<br/>bit-exact with the engine"]
+    R -.-> S["Firmware with the MAC<br/>instruction, in progress"]
     S -.-> K["Full core in RTL simulation<br/>planned"]
 ```
 
@@ -195,6 +218,9 @@ bash hardware/scripts/cosim.sh
 # Synthesis resource report (Xilinx 7-series and iCE40)
 bash hardware/scripts/synth.sh
 
+# Post-route Fmax on iCE40 UP5K and ECP5 (pip install yowasp-nextpnr-ice40 yowasp-nextpnr-ecp5)
+YOSYS=yowasp-yosys NEXTPNR_PREFIX=yowasp- bash hardware/scripts/fmax.sh
+
 # Optional: event-driven Verilog testbenches with Icarus Verilog
 bash hardware/scripts/run_sim.sh
 ```
@@ -206,6 +232,16 @@ python benchmarks/mnist/export_model_and_data.py   # INT8 model, test set, calib
 ./build/mnist_benchmark                            # FP32 vs INT8 accuracy table (also writes web/js/quant_params.js)
 ./build/gen_simd_vectors                           # regenerate hardware/tb/golden_vectors.hex
 ```
+
+**Bare-metal firmware on Spike** (Linux or WSL; the setup script installs the RISC-V compiler and builds Spike):
+
+```bash
+bash firmware/setup_toolchain.sh && export PATH="$HOME/.riscv-edge-ai-tools/bin:$PATH"
+python firmware/gen_model_header.py
+make -C firmware run
+```
+
+CI runs all of the above on every push, and fails if the regenerated model, calibration constants or golden vectors differ from the committed ones.
 
 To retrain from scratch: `python benchmarks/mnist/train_and_export.py` (NumPy only), then run the export again.
 
@@ -221,7 +257,9 @@ benchmarks/mnist/   training/export scripts, benchmark harness, trained model (.
 hardware/rtl/       simd_mac.v (datapath), simd_mac_wrapper.v (custom-0 decoder)
 hardware/tb/        Verilog testbenches, CXXRTL co-sim, golden vectors
 hardware/include/   C header for the custom instruction
-hardware/docs/      microarchitecture spec, synthesis notes
+hardware/fpga/      timing harness for place-and-route
+hardware/docs/      microarchitecture spec
+firmware/           bare-metal RV32IM inference for Spike: startup code, linker script, HTIF I/O
 web/                browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
 docs/               quantization spec, benchmark notes, figures
 ```
@@ -237,15 +275,16 @@ gantt
     axisFormat %d %b
     section Software
     Real MNIST eval and calibration :done, a1, 2026-11-09, 1d
-    Bare-metal RV32IM on Spike      :a2, after a1, 4d
+    Scalar firmware on Spike        :done, a2, 2026-11-11, 1d
+    MAC instruction in firmware     :a2b, after a2, 3d
     section Hardware
-    MAC inside PicoRV32, RTL sim    :a3, after a2, 5d
+    MAC inside PicoRV32, RTL sim    :a3, after a2b, 5d
     section Write-up
     Technical report                :a4, after a3, 3d
 ```
 
 1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
-2. Freestanding C firmware for RV32IM (no heap, no exceptions, no standard library) running on Spike, with `rdcycle` measurements for three versions of the same GEMM: scalar, SIMD dot-product, and SIMD with an internal accumulator.
+2. Freestanding C firmware for RV32IM on Spike. ~~Scalar baseline~~ done (818,672 instructions per inference, bit-exact). Next: the same GEMM with the SIMD dot-product instruction, and with an internal accumulator.
 3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Report area and Fmax with and without the unit.
 4. Short technical report.
 

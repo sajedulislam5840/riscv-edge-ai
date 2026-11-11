@@ -3,3 +3,8 @@ web/js/weights.js linguist-generated=true
 web/js/model_int8.js linguist-generated=true
 web/js/quant_params.js linguist-generated=true
 hardware/tb/golden_vectors.hex linguist-generated=true
+
+# Scripts must keep LF line endings so they run in bash/WSL from a Windows checkout
+*.sh text eol=lf
+Makefile text eol=lf
+*.S text eol=lf

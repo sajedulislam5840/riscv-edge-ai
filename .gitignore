@@ -48,3 +48,4 @@ benchmarks/mnist/results/summary.txt
 benchmarks/mnist/results/benchmark_data.csv
 hardware/rtl/synth_*.txt
 benchmarks/mnist/data/
+firmware/build/

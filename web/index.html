@@ -191,11 +191,11 @@
         </div>
         <div>
           <dt>Size on an FPGA</dt>
-          <dd>4 DSP blocks, 33 lookup tables and 34 flip-flops on a Xilinx 7-series chip</dd>
+          <dd>4 DSP blocks, 33 lookup tables and 34 flip-flops on a Xilinx 7-series chip; runs at up to 47 MHz on a Lattice iCE40 UP5K after place and route</dd>
         </div>
         <div>
           <dt>Still to measure</dt>
-          <dd>The speed-up in clock cycles, by running the network on a RISC-V simulator with and without the new instruction</dd>
+          <dd>The speed-up: the network already runs on a simulated RISC-V chip in 818,672 instructions per digit without the new instruction; next is the same run with it</dd>
         </div>
       </dl>
     </section>
@@ -222,7 +222,8 @@
       <ul class="status">
         <li><span class="tag tag-done">Done</span>INT8 engine, calibration and test-set evaluation</li>
         <li><span class="tag tag-done">Done</span>Four-way multiply-accumulate unit in Verilog, synthesised and verified</li>
-        <li><span class="tag tag-next">Next</span>Cycle counts on a RISC-V simulator, with and without the custom instruction</li>
+        <li><span class="tag tag-done">Done</span>The whole network running bare-metal on a simulated RISC-V chip: 818,672 instructions per digit, same outputs as the C++ engine</li>
+        <li><span class="tag tag-next">Next</span>The same firmware using the custom instruction, to measure the speed-up</li>
         <li><span class="tag tag-later">Later</span>The unit attached to a real RISC-V core (PicoRV32), and a short technical report</li>
       </ul>
     </section>

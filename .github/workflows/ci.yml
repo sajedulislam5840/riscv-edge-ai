@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  engine:
+    name: Engine tests and MNIST reproducibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Regenerate model, calibration and golden vectors
+        run: |
+          pip install numpy==2.5.3
+          curl -sSL -o mnist.npz https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz
+          python benchmarks/mnist/export_model_and_data.py
+          ./build/mnist_benchmark
+          ./build/gen_simd_vectors
+      - name: Committed files must match what the code produces
+        run: |
+          git diff --stat --exit-code -- \
+            benchmarks/mnist/results/mnist_model.qbin \
+            web/js/model_int8.js web/js/quant_params.js \
+            hardware/tb/golden_vectors.hex
+
+  hardware:
+    name: RTL co-simulation, synthesis and Fmax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install yowasp-yosys==0.70.0.0.post1259 yowasp-nextpnr-ice40==0.11.1.0.post826 yowasp-nextpnr-ecp5==0.11.1.0.post826
+      - name: RTL co-simulation (25,088 golden vectors)
+        run: YOSYS=yowasp-yosys bash hardware/scripts/cosim.sh
+      - name: Synthesis resource report
+        run: YOSYS=yowasp-yosys bash hardware/scripts/synth.sh
+      - name: Post-route Fmax
+        run: YOSYS=yowasp-yosys NEXTPNR_PREFIX=yowasp- bash hardware/scripts/fmax.sh
+
+  firmware:
+    name: Bare-metal RV32IM firmware on Spike
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -q && sudo apt-get install -y -q device-tree-compiler
+      - uses: actions/cache@v4
+        with:
+          path: ~/.riscv-edge-ai-tools
+          key: rv-tools-${{ runner.os }}-${{ hashFiles('firmware/setup_toolchain.sh') }}
+      - name: Toolchain and Spike
+        run: |
+          bash firmware/setup_toolchain.sh
+          echo "$HOME/.riscv-edge-ai-tools/bin" >> "$GITHUB_PATH"
+      - name: Build and run on Spike
+        run: |
+          python3 firmware/gen_model_header.py
+          make -C firmware run
