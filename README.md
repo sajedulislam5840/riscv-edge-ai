@@ -247,8 +247,11 @@ python benchmarks/mnist/export_model_and_data.py   # INT8 model, test set, calib
 ```bash
 bash firmware/setup_toolchain.sh && export PATH="$HOME/.riscv-edge-ai-tools/bin:$PATH"
 python firmware/gen_model_header.py
+make -C firmware isa-test   # the custom instructions on Spike vs a C reference (19,005 checks)
 make -C firmware run
 ```
+
+Spike runs the custom-0 instructions through `firmware/spike_ext/simd_mac_ext.cc`, an extension library with the same semantics as `hardware/rtl/simd_mac_wrapper.v`, built against the Spike source tree that the setup script keeps.
 
 **Numbers on the web demo** come from `web/js/results.js`, written from the real command outputs:
 

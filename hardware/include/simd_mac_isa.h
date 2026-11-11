@@ -37,55 +37,11 @@
 
 // Custom-0 opcode constant for assembler
 #define CUSTOM_0 0x0B
+// Two-step stringify so the assembler sees "0x0B", not the macro name.
+#define SIMD_MAC_STR_(x) #x
+#define SIMD_MAC_STR(x) SIMD_MAC_STR_(x)
 
-// =============================================================================
-// Hardware Path: GCC inline assembly for RISC-V targets
-// Use when compiling with riscv32-unknown-elf-gcc targeting this co-processor
-// =============================================================================
-#if defined(__riscv) && defined(SIMD_MAC_HW_ENABLE)
-
-// simd_mac: rd += sum(rs1[i] * rs2[i]) for i in [0..3]
-// Encoding: funct7=0x00, funct3=0, opcode=custom-0
-#define SIMD_MAC(rd, rs1, rs2) \
-    __asm__ volatile ( \
-        ".insn r " #CUSTOM_0 ", 0, 0, %0, %1, %2" \
-        : "+r"(rd) \
-        : "r"(rs1), "r"(rs2) \
-    )
-
-// simd_mac_clr: rd = sum(rs1[i] * rs2[i]) for i in [0..3]  (accumulator cleared)
-// Encoding: funct7=0x01, funct3=0, opcode=custom-0
-#define SIMD_MAC_CLR(rd, rs1, rs2) \
-    __asm__ volatile ( \
-        ".insn r " #CUSTOM_0 ", 0, 1, %0, %1, %2" \
-        : "+r"(rd) \
-        : "r"(rs1), "r"(rs2) \
-    )
-
-// simd_macz: start a new running total inside the unit; rd = that total
-// Encoding: funct7=0x03, funct3=0, opcode=custom-0
-#define SIMD_MACZ(rd, rs1, rs2) \
-    __asm__ volatile ( \
-        ".insn r " #CUSTOM_0 ", 0, 3, %0, %1, %2" \
-        : "=r"(rd) \
-        : "r"(rs1), "r"(rs2) \
-    )
-
-// simd_macc: add to the running total inside the unit; rd = the new total
-// Encoding: funct7=0x02, funct3=0, opcode=custom-0
-#define SIMD_MACC(rd, rs1, rs2) \
-    __asm__ volatile ( \
-        ".insn r " #CUSTOM_0 ", 0, 2, %0, %1, %2" \
-        : "=r"(rd) \
-        : "r"(rs1), "r"(rs2) \
-    )
-
-// =============================================================================
-// Software Fallback Path: Bit-exact C implementation for host compilation
-// Use for unit testing, golden reference, and cross-compilation compatibility
-// =============================================================================
-#else
-
+// Packing helpers, used by both the hardware and the software paths.
 // Pack four signed int8_t values into one uint32_t (little-endian)
 static inline uint32_t simd_pack_i8(int8_t b0, int8_t b1, int8_t b2, int8_t b3) {
     return ((uint32_t)(uint8_t)b0)
@@ -98,6 +54,55 @@ static inline uint32_t simd_pack_i8(int8_t b0, int8_t b1, int8_t b2, int8_t b3) 
 static inline int32_t simd_extract_i8(uint32_t packed, int lane) {
     return (int32_t)(int8_t)((packed >> (lane * 8)) & 0xFF);
 }
+
+
+// =============================================================================
+// Hardware Path: GCC inline assembly for RISC-V targets
+// Use when compiling with riscv32-unknown-elf-gcc targeting this co-processor
+// =============================================================================
+#if defined(__riscv) && defined(SIMD_MAC_HW_ENABLE)
+
+// simd_mac: rd += sum(rs1[i] * rs2[i]) for i in [0..3]
+// Encoding: funct7=0x00, funct3=0, opcode=custom-0
+#define SIMD_MAC(rd, rs1, rs2) \
+    __asm__ volatile ( \
+        ".insn r " SIMD_MAC_STR(CUSTOM_0) ", 0, 0, %0, %1, %2" \
+        : "+r"(rd) \
+        : "r"(rs1), "r"(rs2) \
+    )
+
+// simd_mac_clr: rd = sum(rs1[i] * rs2[i]) for i in [0..3]  (accumulator cleared)
+// Encoding: funct7=0x01, funct3=0, opcode=custom-0
+#define SIMD_MAC_CLR(rd, rs1, rs2) \
+    __asm__ volatile ( \
+        ".insn r " SIMD_MAC_STR(CUSTOM_0) ", 0, 1, %0, %1, %2" \
+        : "=r"(rd) \
+        : "r"(rs1), "r"(rs2) \
+    )
+
+// simd_macz: start a new running total inside the unit; rd = that total
+// Encoding: funct7=0x03, funct3=0, opcode=custom-0
+#define SIMD_MACZ(rd, rs1, rs2) \
+    __asm__ volatile ( \
+        ".insn r " SIMD_MAC_STR(CUSTOM_0) ", 0, 3, %0, %1, %2" \
+        : "=r"(rd) \
+        : "r"(rs1), "r"(rs2) \
+    )
+
+// simd_macc: add to the running total inside the unit; rd = the new total
+// Encoding: funct7=0x02, funct3=0, opcode=custom-0
+#define SIMD_MACC(rd, rs1, rs2) \
+    __asm__ volatile ( \
+        ".insn r " SIMD_MAC_STR(CUSTOM_0) ", 0, 2, %0, %1, %2" \
+        : "=r"(rd) \
+        : "r"(rs1), "r"(rs2) \
+    )
+
+// =============================================================================
+// Software Fallback Path: Bit-exact C implementation for host compilation
+// Use for unit testing, golden reference, and cross-compilation compatibility
+// =============================================================================
+#else
 
 // simd_mac_sw: accumulate dot product (software fallback)
 static inline int32_t simd_mac_sw(int32_t acc, uint32_t rs1, uint32_t rs2) {

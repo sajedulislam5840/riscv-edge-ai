@@ -74,5 +74,6 @@ jobs:
           set -o pipefail
           python3 firmware/gen_model_header.py
           mkdir -p build
+          make -s -C firmware isa-test
           make -s -C firmware run | tee build/firmware_run.txt
           python3 scripts/record_results.py --check
