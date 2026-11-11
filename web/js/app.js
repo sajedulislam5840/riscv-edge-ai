@@ -25,6 +25,14 @@
   });
   if (RES.firmware) {
     if (RES.firmware.log) $("spike-log").textContent = RES.firmware.log.join("\n");
+    // Hero: the firmware's own speed-up line, exactly as it printed it.
+    const line = (RES.firmware.log || []).find((l) => l.startsWith("with simd_macz/simd_macc:"));
+    if (line) {
+      const m = line.match(/^(.*instructions, )(.*)$/);
+      $("t-fw").innerHTML = "";
+      $("t-fw").append(m ? m[1] : line);
+      if (m) { const b = document.createElement("b"); b.textContent = m[2]; $("t-fw").append(b); }
+    }
     $("ipm").textContent = (RES.firmware.instructionsPerInference / RES.firmware.macsPerInference).toFixed(1);
     const base = RES.firmware.instructionsPerInference;
     const showBar = (row, value) => {

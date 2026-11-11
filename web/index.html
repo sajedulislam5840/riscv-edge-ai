@@ -79,6 +79,8 @@
           <span class="out">RTL vectors: 25088  mismatches: 0</span>
           <span class="cmd">./build/mnist_benchmark</span>
           <span class="out">INT8, integers only   <b id="t-int8">98.21%</b>   FP32 <span id="t-fp32">98.23%</span></span>
+          <span class="cmd">make -C firmware run</span>
+          <span class="out" id="t-fw">with simd_macz/simd_macc: 162869 instructions, <b>5.03x fewer</b></span>
         </figcaption>
       </figure>
     </section>
@@ -306,6 +308,6 @@ RESULT: all outputs match the C++ engine</pre>
   <script src="js/quant_params.js?v=4"></script>
   <script src="js/results.js?v=6"></script>
   <script src="js/int8_engine.js?v=4"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>
