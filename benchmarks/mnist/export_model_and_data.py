@@ -88,7 +88,10 @@ write_images("benchmarks/mnist/data/mnist_test.bin", d["x_test"], d["y_test"])
 write_images("benchmarks/mnist/data/mnist_calib.bin", d["x_train"][:2000], d["y_train"][:2000])
 
 # Reference FP32 accuracy computed here, so the C++ result can be cross-checked.
-x = d["x_test"].reshape(-1, 784).astype(np.float32) / 255.0
+# Float64 arithmetic on the FP32 weights: float32 matrix products sum in a CPU-dependent
+# order, which can flip a borderline prediction and change the last digit on another machine.
+x = d["x_test"].reshape(-1, 784).astype(np.float64) / 255.0
+W1, b1, W2, b2 = (np.asarray(a, dtype=np.float64) for a in (W1, b1, W2, b2))
 logits = np.maximum(x @ W1 + b1, 0) @ W2 + b2
 acc = (logits.argmax(1) == d["y_test"]).mean() * 100
 print(f"FP32 test accuracy (numpy reference): {acc:.2f}%")
