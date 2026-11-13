@@ -1,4 +1,4 @@
-// Self-test for the custom-0 MAC instructions on Spike (with firmware/spike_ext loaded).
+// Self-test for the custom-0 MAC instructions (Spike with firmware/spike_ext, or the PicoRV32 RTL).
 // Runs each instruction through the macros in hardware/include/simd_mac_isa.h and checks the
 // result against a plain C reference: random operands, long simd_macz/simd_macc chains with
 // other code in between, the rd-accumulator forms, extreme values, and 32-bit wraparound.
@@ -26,7 +26,7 @@ static void check(const char *what, int32_t got, int32_t want) {
 }
 
 int main(void) {
-    htif_puts("simd_mac ISA self-test on Spike\n");
+    htif_puts("simd_mac ISA self-test\n");
     uint32_t checks = 0;
 
     for (int i = 0; i < 2000; i++, checks += 2) {           // single instructions
@@ -49,6 +49,7 @@ int main(void) {
         }
     }
 
+#ifndef NO_SIMD_MAC_RD   // the 3-operand simd_mac needs a third register read port (not on PicoRV32)
     for (int chain = 0; chain < 50; chain++) {              // simd_mac_clr/simd_mac, total in rd
         uint32_t a = rnd(), b = rnd();
         int32_t want = ref_dot4(a, b), r;
@@ -60,6 +61,7 @@ int main(void) {
             check("simd_mac chain", r, want);
         }
     }
+#endif
 
     {   // the rd forms also write the unit's result register, as in the RTL,
         // so simd_macc continues from their result
