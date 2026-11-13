@@ -325,7 +325,7 @@ gantt
     Real cycle trace animation      :p2, 2026-11-18, 2d
     section Write-up
     Technical report and SOP draft  :w1, 2026-11-20, 4d
-    Buffer and v1.0 release         :w2, 2026-11-24, 2d
+    Buffer, tag the final commit        :w2, 2026-11-24, 2d
 ```
 
 1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
@@ -347,7 +347,7 @@ The order matters: the software optimisation changes the cycle counts, so it com
 | 6, Wed 18 Nov | **Real cycle trace**, part 1 | The testbench dumps the executed instruction stream with cycle numbers for one inner-loop window of each version. A script turns it into `web/js/trace.js` | Planned |
 | 7, Thu 19 Nov | **Real cycle trace**, part 2, and hardening | Website section that replays scalar vs MAC side by side from that real trace. Mutation test on the adapter. Repository cleanup, everything green | Planned |
 | 20 to 23 Nov | Technical report (4 pages) and SOP draft | Report uses only the numbers from `BENCHMARKS.md` | Planned |
-| 24 to 25 Nov | Buffer, `v1.0` release with a citable DOI | Project finished on 25 Nov | Planned |
+| 24 to 25 Nov | Buffer, tag the final commit `v1.0` | Project finished on 25 Nov | Planned |
 
 What each extra answers:
 - **Wait-state sweep:** how much of the speed-up survives when memory is slow? The MAC removes instructions, but every operand load still waits for memory.
