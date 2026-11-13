@@ -35,7 +35,7 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,683 instructions per inference, outputs match the C++ engine |
 | Internal-accumulator instructions (`simd_macc` / `simd_macz`) for two-read-port cores | Done: wrapper verified on 25,088 instructions, costs 1 LUT and no Fmax |
 | Same firmware with the custom MAC instructions | Done: 162,869 instructions per inference, **5.03x fewer**, outputs unchanged |
-| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | In progress |
+| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | In progress: custom instructions verified on the core (day 1 of 5) |
 | Technical report | Planned |
 
 Everything listed as done below can be reproduced with the commands in [Reproduce](#reproduce).
@@ -242,6 +242,13 @@ YOSYS=yowasp-yosys NEXTPNR_PREFIX=yowasp- bash hardware/scripts/fmax.sh
 bash hardware/scripts/run_sim.sh
 ```
 
+**PicoRV32 with the MAC attached** (needs the RISC-V toolchain from `firmware/setup_toolchain.sh` on `PATH`):
+
+```bash
+bash hardware/scripts/soc_sim.sh isa      # custom-instruction self-test on the core, a few seconds
+bash hardware/scripts/soc_sim.sh mnist    # full MNIST inference on the core, about a minute
+```
+
 **MNIST evaluation** (needs Python with NumPy, and `mnist.npz` in the repo root, from https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz):
 
 ```bash
@@ -284,11 +291,13 @@ src/                FP32 ops and INT8 quantization engine
 tests/              unit tests + golden-vector generator for the RTL
 benchmarks/mnist/   training/export scripts, benchmark harness, trained model (.qbin)
 hardware/rtl/       simd_mac.v (datapath), simd_mac_wrapper.v (custom-0 decoder, internal accumulator)
-hardware/tb/        Verilog testbenches, CXXRTL co-sim, golden vectors
+hardware/tb/        Verilog testbenches, CXXRTL co-sim, whole-SoC testbench, golden vectors
+hardware/soc/       PicoRV32 + MAC: PCPI adapter and top level
+hardware/third_party/ PicoRV32 core (ISC licence), unmodified
 hardware/include/   C header for the custom instruction
 hardware/fpga/      timing harness for place-and-route
 hardware/docs/      microarchitecture spec
-firmware/           bare-metal RV32IM inference for Spike: startup code, linker script, HTIF I/O
+firmware/           bare-metal RV32IM inference for Spike and PicoRV32: startup code, linker scripts, I/O
 web/                browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
 docs/               quantization spec, benchmark notes, figures
 ```
@@ -307,15 +316,31 @@ gantt
     Scalar firmware on Spike        :done, a2, 2026-11-11, 1d
     MAC instructions in firmware    :done, a2b, 2026-11-11, 1d
     section Hardware
-    MAC inside PicoRV32, RTL sim    :a3, after a2b, 5d
+    Core boots, custom instructions :done, a3a, 2026-11-13, 1d
+    MNIST on the core, cycle counts :a3b, after a3a, 1d
+    Baseline, wait states, area     :a3c, after a3b, 1d
+    CI, README, website             :a3d, after a3c, 1d
+    Buffer and hardening            :a3e, after a3d, 1d
     section Write-up
-    Technical report                :a4, after a3, 3d
+    Technical report                :a4, 2026-11-18, 6d
 ```
 
 1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
 2. ~~Freestanding C firmware for RV32IM on Spike, scalar and with the custom instructions.~~ Done: 818,683 vs 162,869 instructions per inference (5.03x fewer), bit-exact.
-3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Report area and Fmax with and without the unit.
+3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Report area and Fmax with and without the unit. In progress, see the tracker below.
 4. Short technical report.
+
+### Progress tracker: PicoRV32 integration (13 to 17 Nov)
+
+| Day | Goal | Done when | State |
+|---|---|---|---|
+| 1, Fri 13 Nov | Core boots and the custom instructions work | The ISA self-test passes on the PicoRV32 RTL, and fails without the unit | Done |
+| 2, Sat 14 Nov | MNIST on the core | All 10 example images bit-exact against the C++ engine, with real clock-cycle counts for scalar and MAC code | Next |
+| 3, Sun 15 Nov | Honest baseline and cost | Same firmware on the core without the unit, memory wait states, area and Fmax with and without the unit | Planned |
+| 4, Mon 16 Nov | Automate and publish | CI runs the SoC simulation, results appear in the README and on the website | Planned |
+| 5, Tue 17 Nov | Buffer and hardening | Mutation test on the adapter, repository cleanup, everything green | Planned |
+
+Day 1 result: `hardware/scripts/soc_sim.sh isa` runs 14,005 checks on PicoRV32 with the MAC attached through its PCPI interface, all matching the C reference. With the unit removed the core traps on the first custom instruction, and a one-bit fault injected into the adapter makes the test fail, so a pass is meaningful.
 
 Later: design-space exploration (2/4/8 lanes, saturation, pipelining), a small CNN workload, FPGA bring-up, and porting to other open RISC-V cores.
 
