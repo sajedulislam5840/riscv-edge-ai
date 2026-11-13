@@ -35,8 +35,7 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,683 instructions per inference, outputs match the C++ engine |
 | Internal-accumulator instructions (`simd_macc` / `simd_macz`) for two-read-port cores | Done: wrapper verified on 25,088 instructions, costs 1 LUT and no Fmax |
 | Same firmware with the custom MAC instructions | Done: 162,869 instructions per inference, **5.03x fewer**, outputs unchanged |
-| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate | Next |
-| Integration of the MAC into a RISC-V core (PicoRV32) | Planned |
+| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | In progress |
 | Technical report | Planned |
 
 Everything listed as done below can be reproduced with the commands in [Reproduce](#reproduce).
@@ -57,7 +56,7 @@ flowchart LR
     G -->|"0 mismatches"| H["Verified"]
     B --> I["RV32IM firmware on Spike<br/>scalar baseline, bit-exact"]
     I --> J2["Firmware with the MAC<br/>instructions: 5.03x fewer"]
-    J2 -.-> J["PicoRV32 + MAC in RTL<br/>planned"]
+    J2 -.-> J["PicoRV32 + MAC in RTL<br/>in progress"]
 
     classDef done fill:#0b3a53,stroke:#38bdf8,color:#e2e8f0
     classDef todo fill:#1e293b,stroke:#64748b,color:#94a3b8,stroke-dasharray:4 3
