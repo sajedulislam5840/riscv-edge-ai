@@ -35,7 +35,7 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,683 instructions per inference, outputs match the C++ engine |
 | Internal-accumulator instructions (`simd_macc` / `simd_macz`) for two-read-port cores | Done: wrapper verified on 25,088 instructions, costs 1 LUT and no Fmax |
 | Same firmware with the custom MAC instructions | Done: 162,869 instructions per inference, **5.03x fewer**, outputs unchanged |
-| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | In progress: custom instructions verified on the core (day 1 of 5) |
+| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | In progress: custom instructions verified on the core (day 1 of 7) |
 | Technical report | Planned |
 
 Everything listed as done below can be reproduced with the commands in [Reproduce](#reproduce).
@@ -316,29 +316,43 @@ gantt
     Scalar firmware on Spike        :done, a2, 2026-11-11, 1d
     MAC instructions in firmware    :done, a2b, 2026-11-11, 1d
     section Hardware
-    Core boots, custom instructions :done, a3a, 2026-11-13, 1d
-    MNIST on the core, cycle counts :a3b, after a3a, 1d
-    Baseline, wait states, area     :a3c, after a3b, 1d
-    CI, README, website             :a3d, after a3c, 1d
-    Buffer and hardening            :a3e, after a3d, 1d
+    Core boots, custom instructions :done, h1, 2026-11-13, 1d
+    MNIST on the core, cycle counts :h2, 2026-11-14, 1d
+    Baseline, wait-state sweep      :h3, 2026-11-15, 1d
+    Software optimisation           :h4, 2026-11-16, 1d
+    section Publish
+    CI, BENCHMARKS.md, website      :p1, 2026-11-17, 1d
+    Real cycle trace animation      :p2, 2026-11-18, 2d
     section Write-up
-    Technical report                :a4, 2026-11-18, 6d
+    Technical report and SOP draft  :w1, 2026-11-20, 4d
+    Buffer and v1.0 release         :w2, 2026-11-24, 2d
 ```
 
 1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
 2. ~~Freestanding C firmware for RV32IM on Spike, scalar and with the custom instructions.~~ Done: 818,683 vs 162,869 instructions per inference (5.03x fewer), bit-exact.
-3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Report area and Fmax with and without the unit. In progress, see the tracker below.
+3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Report area and Fmax with and without the unit. In progress, see the execution plan below.
 4. Short technical report.
 
-### Progress tracker: PicoRV32 integration (13 to 17 Nov)
+### Execution plan (13 to 25 Nov)
+
+The order matters: the software optimisation changes the cycle counts, so it comes before CI, the website numbers and the report. If a day slips, the animation is cut first, then the wait-state sweep stays, then the optimisation stays.
 
 | Day | Goal | Done when | State |
 |---|---|---|---|
 | 1, Fri 13 Nov | Core boots and the custom instructions work | The ISA self-test passes on the PicoRV32 RTL, and fails without the unit | Done |
-| 2, Sat 14 Nov | MNIST on the core | All 10 example images bit-exact against the C++ engine, with real clock-cycle counts for scalar and MAC code | Next |
-| 3, Sun 15 Nov | Honest baseline and cost | Same firmware on the core without the unit, memory wait states, area and Fmax with and without the unit | Planned |
-| 4, Mon 16 Nov | Automate and publish | CI runs the SoC simulation, results appear in the README and on the website | Planned |
-| 5, Tue 17 Nov | Buffer and hardening | Mutation test on the adapter, repository cleanup, everything green | Planned |
+| 2, Sat 14 Nov | MNIST on the core, cycle counts | All 10 example images bit-exact against the C++ engine, with measured clock cycles for scalar, `simd_mac_clr` and `simd_macz`/`simd_macc` code | Next |
+| 3, Sun 15 Nov | Honest baseline, **wait-state sweep**, cost | Same firmware on the core without the unit. Cycles for 0, 1, 2, 4, 8 and 16 wait states per memory access, scalar vs MAC, as a table and chart. Area and Fmax with and without the unit | Planned |
+| 4, Mon 16 Nov | **Software optimisation** | Unrolled inner loop and fewer loads (for example two neurons per activation load). Still bit-exact, measured on the RTL, with a before/after table and a note on where the cycles go | Planned |
+| 5, Tue 17 Nov | Automate and publish | CI runs the SoC simulation. `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Planned |
+| 6, Wed 18 Nov | **Real cycle trace**, part 1 | The testbench dumps the executed instruction stream with cycle numbers for one inner-loop window of each version. A script turns it into `web/js/trace.js` | Planned |
+| 7, Thu 19 Nov | **Real cycle trace**, part 2, and hardening | Website section that replays scalar vs MAC side by side from that real trace. Mutation test on the adapter. Repository cleanup, everything green | Planned |
+| 20 to 23 Nov | Technical report (4 pages) and SOP draft | Report uses only the numbers from `BENCHMARKS.md` | Planned |
+| 24 to 25 Nov | Buffer, `v1.0` release with a citable DOI | Project finished on 25 Nov | Planned |
+
+What each extra answers:
+- **Wait-state sweep:** how much of the speed-up survives when memory is slow? The MAC removes instructions, but every operand load still waits for memory.
+- **Software optimisation:** the MAC loop costs about 6.4 instructions per 4-multiply chunk, of which only one is the MAC. Fewer loads and less loop overhead should show how far software alone can go on top of the hardware.
+- **Real cycle trace:** the website replays the actual instruction stream from the RTL simulation, not a drawing, so a visitor sees where the cycles go.
 
 Day 1 result: `hardware/scripts/soc_sim.sh isa` runs 14,005 checks on PicoRV32 with the MAC attached through its PCPI interface, all matching the C reference. With the unit removed the core traps on the first custom instruction, and a one-bit fault injected into the adapter makes the test fail, so a pass is meaningful.
 
