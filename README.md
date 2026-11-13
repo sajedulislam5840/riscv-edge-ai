@@ -348,10 +348,6 @@ Later: design-space exploration (2/4/8 lanes, saturation, pipelining), a small C
 
 This builds on well-known ideas: the RISC-V P (packed SIMD) extension has a similar 4-way INT8 multiply-accumulate (`smaqa`), and projects such as Google's CFU Playground and PULP's XpulpNN add custom ML instructions to open RISC-V cores. What this project adds is a small, fully open, end-to-end stack, from quantization to RTL, built so that every step can be checked against the previous one.
 
-## Acknowledgements
-
-I used AI coding assistants while developing this project. The design decisions, verification and measurements are my own, and I can explain every part of it.
-
 ## License
 
 MIT, see [LICENSE](LICENSE).
