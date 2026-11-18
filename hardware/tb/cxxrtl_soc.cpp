@@ -6,24 +6,35 @@
 // states); an optional third argument adds N wait states to every access.
 //
 // Build and run: hardware/scripts/soc_sim.sh
-//   usage: cxxrtl_soc program.bin [max_cycles] [wait_states]
+//   usage: cxxrtl_soc program.bin [max_cycles] [wait_states] [--examples N] [--scalar-only]
+// The options reach the firmware through two read-only registers (0x10000008 and 0x1000000C),
+// so the same binary runs in every configuration.
 #include "soc_cxxrtl.cc"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <vector>
 
 static const uint32_t RAM_BYTES = 1u << 20;
 static const uint32_t UART_TX = 0x10000000u, EXIT_REG = 0x10000004u;
 
 int main(int argc, char **argv) {
-    if (argc < 2) { std::printf("usage: %s program.bin [max_cycles] [wait_states]\n", argv[0]); return 2; }
-    const uint64_t max_cycles = argc > 2 ? std::strtoull(argv[2], nullptr, 10) : 2000000000ull;
-    const unsigned wait_states = argc > 3 ? (unsigned)std::strtoul(argv[3], nullptr, 10) : 0;
+    std::vector<const char *> pos;
+    uint32_t opt_examples = 0xFFFFFFFFu, opt_scalar_only = 0xFFFFFFFFu;     // 0xFFFFFFFF: not set
+    for (int i = 1; i < argc; i++) {
+        std::string a = argv[i];
+        if (a == "--examples" && i + 1 < argc) opt_examples = (uint32_t)std::strtoul(argv[++i], nullptr, 10);
+        else if (a == "--scalar-only") opt_scalar_only = 1;
+        else pos.push_back(argv[i]);
+    }
+    if (pos.empty()) { std::printf("usage: %s program.bin [max_cycles] [wait_states] [--examples N] [--scalar-only]\n", argv[0]); return 2; }
+    const uint64_t max_cycles = pos.size() > 1 ? std::strtoull(pos[1], nullptr, 10) : 2000000000ull;
+    const unsigned wait_states = pos.size() > 2 ? (unsigned)std::strtoul(pos[2], nullptr, 10) : 0;
 
     std::vector<uint8_t> ram(RAM_BYTES, 0);
-    FILE *f = std::fopen(argv[1], "rb");
-    if (!f) { std::printf("cannot open %s\n", argv[1]); return 2; }
+    FILE *f = std::fopen(pos[0], "rb");
+    if (!f) { std::printf("cannot open %s\n", pos[0]); return 2; }
     size_t n = std::fread(ram.data(), 1, ram.size(), f);
     std::fclose(f);
     std::printf("[soc] loaded %zu bytes, %u extra wait state(s) per memory access\n", n, wait_states);
@@ -59,7 +70,9 @@ int main(int argc, char **argv) {
                 uint32_t wstrb = dut.p_mem__wstrb.get<uint32_t>();
                 uint32_t wdata = dut.p_mem__wdata.get<uint32_t>();
                 if (wstrb == 0) {
-                    if (addr < RAM_BYTES - 3)
+                    if (addr == 0x10000008u) next_rdata = opt_examples;
+                    else if (addr == 0x1000000Cu) next_rdata = opt_scalar_only;
+                    else if (addr < RAM_BYTES - 3)
                         next_rdata = ram[addr] | ram[addr + 1] << 8 | ram[addr + 2] << 16 | (uint32_t)ram[addr + 3] << 24;
                 } else if (addr == UART_TX) {
                     std::putchar((int)(wdata & 0xFF));
