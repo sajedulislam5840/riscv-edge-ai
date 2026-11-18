@@ -1,4 +1,3 @@
-/* Bare-metal RV32 memory map for the PicoRV32 SoC testbench: 1 MiB of RAM at address 0. */
 OUTPUT_ARCH("riscv")
 ENTRY(_start)
 

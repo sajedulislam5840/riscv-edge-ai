@@ -123,12 +123,10 @@ static void put_ratio_x100(uint32_t num, uint32_t den) {  // prints num/den with
 
 int main(void) {
     htif_puts("riscv-edge-ai: bare-metal INT8 MNIST on RV32IM\n");
-    // Run-time options (the PicoRV32 testbench sets them; Spike uses the defaults). Choosing at run time
-    // rather than at compile time keeps one binary, so every measurement runs exactly the same code.
-    uint32_t n_examples = platform_option(0, NUM_EXAMPLES);   // how many example images
+    uint32_t n_examples = platform_option(0, NUM_EXAMPLES);
     if (n_examples > NUM_EXAMPLES) n_examples = NUM_EXAMPLES;
-    const int scalar_only = (int)platform_option(1, 0);       // 1: skip the custom instructions
-    const int real_cycles = (int)platform_option(2, 0);       // 1: rdcycle counts clock cycles (not Spike)
+    const int scalar_only = (int)platform_option(1, 0);
+    const int real_cycles = (int)platform_option(2, 0);
     int failures = 0;
     uint32_t c0 = 0, i0 = 0, i_clr = 0, i_int = 0, c_clr = 0, c_int = 0;
     for (int e = 0; e < (int)n_examples; e++) {
@@ -139,7 +137,6 @@ int main(void) {
 
         uint32_t n_clr = 0, n_int = 0, cyc_clr = 0, cyc_int = 0;
         if (!scalar_only) {
-            // The cycle counter is read outside the instruction window so the instruction counts stay exact.
             cs = rdcycle(); is = rdinstret();
             int pred_clr = infer_mac(IMAGES[e], MAC_CLR_ADD);
             n_clr = rdinstret() - is; cyc_clr = rdcycle() - cs;

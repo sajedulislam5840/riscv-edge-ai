@@ -49,7 +49,7 @@ int main(void) {
         }
     }
 
-#ifndef NO_SIMD_MAC_RD   // the 3-operand simd_mac needs a third register read port (not on PicoRV32)
+#ifndef NO_SIMD_MAC_RD
     for (int chain = 0; chain < 50; chain++) {              // simd_mac_clr/simd_mac, total in rd
         uint32_t a = rnd(), b = rnd();
         int32_t want = ref_dot4(a, b), r;

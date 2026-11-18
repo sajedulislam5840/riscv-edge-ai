@@ -1,14 +1,10 @@
-// I/O for the PicoRV32 SoC testbench: same functions as htif.c, but through two memory-mapped
-// registers that the testbench watches. Writing a byte to UART_TX prints it; writing to EXIT_REG
-// ends the simulation with that exit code.
 #include "../htif.h"
 
 #define UART_TX  (*(volatile uint32_t *)0x10000000u)
 #define EXIT_REG (*(volatile uint32_t *)0x10000004u)
 
-// Options set by the testbench (0xFFFFFFFF means not set).
 uint32_t platform_option(int which, uint32_t dflt) {
-    if (which == 2) return 1;                     // rdcycle is a real clock-cycle counter here
+    if (which == 2) return 1;
     uint32_t v = *(volatile uint32_t *)(0x10000008u + 4u * (uint32_t)which);
     return v == 0xFFFFFFFFu ? dflt : v;
 }
@@ -35,6 +31,5 @@ void htif_exit(int code) {
     for (;;) {}
 }
 
-// The compiler may emit calls to these even with -ffreestanding.
 void *memset(void *d, int c, unsigned n) { unsigned char *p = d; while (n--) *p++ = (unsigned char)c; return d; }
 void *memcpy(void *d, const void *s, unsigned n) { unsigned char *p = d; const unsigned char *q = s; while (n--) *p++ = *q++; return d; }
