@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Area and clock speed of PicoRV32 with and without the MAC unit, and of the unit alone.
-#   ECP5 (LFE5U-25F): synthesis + place-and-route, three placement seeds.
-#   iCE40 (UP5K style, with SB_MAC16): synthesis only. The core needs more pins than the UP5K
-#   package has, and the HX8K has no DSP blocks, so there is no meaningful place-and-route.
-# Requires: yowasp-yosys and yowasp-nextpnr-ecp5 (pip install yowasp-yosys yowasp-nextpnr-ecp5).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 YOSYS=${YOSYS:-yowasp-yosys}
@@ -13,10 +8,10 @@ mkdir -p "$OUT"
 CORE="hardware/third_party/picorv32/picorv32.v hardware/rtl/simd_mac.v hardware/rtl/simd_mac_wrapper.v hardware/soc/pcpi_simd_mac.v hardware/soc/pico_mac_soc.v"
 UNIT="hardware/rtl/simd_mac.v hardware/rtl/simd_mac_wrapper.v hardware/soc/pcpi_simd_mac.v"
 
-count() {  # count <log> <cell-regex>: total of the final statistics block
+count() {
   awk '/Printing statistics/{p=1} p' "$1" | grep -E "^\s+[0-9]+\s+($2)\s*$" | awk '{a[$2]=$1} END{for(k in a) s+=a[k]; print s+0}'
 }
-report() {  # report <label> <log> <lut-regex> <ff-regex> <dsp-regex>
+report() {
   printf "%-28s LUT4 %5d   FF %4d   DSP %d\n" "$1" "$(count "$2" "$3")" "$(count "$2" "$4")" "$(count "$2" "$5")"
 }
 

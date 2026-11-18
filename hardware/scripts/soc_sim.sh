@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Simulate PicoRV32 + the SIMD MAC unit (hardware/soc/) in RTL and run a program on it.
-#   hardware/scripts/soc_sim.sh isa     custom-instruction self-test (seconds)
-#   hardware/scripts/soc_sim.sh mnist   full MNIST inference, scalar and with the MAC (about a minute)
-#   hardware/scripts/soc_sim.sh build   only build the simulator and the firmware
-# WITH_MAC=0 builds the same core without the MAC unit (simulator in build/soc_nomac).
-# Requires: yowasp-yosys (or yosys), g++, and the RISC-V toolchain on PATH (firmware/setup_toolchain.sh).
-# Optional: WAIT_STATES=N adds N wait states to every memory access.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 WHAT=${1:-isa}

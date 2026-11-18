@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Cycles per inference on PicoRV32 as memory gets slower, and the same core without the MAC unit.
-# Every run uses the same firmware binary (image 0 only); only the testbench options change.
-# Writes a table to stdout. Takes a few minutes.
-# Requires: yowasp-yosys (or yosys), g++, the RISC-V toolchain on PATH.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 hardware/scripts/soc_sim.sh build >/dev/null

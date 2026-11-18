@@ -1,14 +1,3 @@
-// Whole-SoC simulation: PicoRV32 + SIMD MAC (hardware/soc/pico_mac_soc.v) running a program.
-//
-// The testbench provides 1 MiB of RAM at address 0 and two memory-mapped registers:
-//   0x10000000  write a byte: print it          0x10000004  write: stop with this exit code
-// Memory answers like PicoRV32's own testbench: ready one cycle after valid (0 extra wait
-// states); an optional third argument adds N wait states to every access.
-//
-// Build and run: hardware/scripts/soc_sim.sh
-//   usage: cxxrtl_soc program.bin [max_cycles] [wait_states] [--examples N] [--scalar-only]
-// The options reach the firmware through two read-only registers (0x10000008 and 0x1000000C),
-// so the same binary runs in every configuration.
 #include "soc_cxxrtl.cc"
 #include <cstdint>
 #include <cstdio>
@@ -21,7 +10,7 @@ static const uint32_t UART_TX = 0x10000000u, EXIT_REG = 0x10000004u;
 
 int main(int argc, char **argv) {
     std::vector<const char *> pos;
-    uint32_t opt_examples = 0xFFFFFFFFu, opt_scalar_only = 0xFFFFFFFFu;     // 0xFFFFFFFF: not set
+    uint32_t opt_examples = 0xFFFFFFFFu, opt_scalar_only = 0xFFFFFFFFu;
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
         if (a == "--examples" && i + 1 < argc) opt_examples = (uint32_t)std::strtoul(argv[++i], nullptr, 10);
@@ -59,7 +48,6 @@ int main(int argc, char **argv) {
     uint64_t cycles = 0;
 
     while (!finished && cycles < max_cycles) {
-        // What the memory does at this clock edge, from the values just before it.
         bool next_ready = false;
         uint32_t next_rdata = 0;
         if (dut.p_mem__valid.get<bool>() && !ready) {
