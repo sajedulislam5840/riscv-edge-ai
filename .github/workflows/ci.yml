@@ -111,3 +111,7 @@ jobs:
         run: |
           python3 scripts/record_results.py --check
           python3 scripts/gen_benchmarks.py --check
+      - name: The website cycle trace must match a fresh recording
+        run: |
+          bash hardware/scripts/soc_trace.sh
+          git diff --exit-code web/js/trace.js
