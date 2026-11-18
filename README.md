@@ -220,7 +220,7 @@ The speed-up barely moves. PicoRV32 has no cache and fetches every instruction f
 What this says:
 
 - The unit costs 34 flip-flops and 4 DSP blocks on both devices. LUTs differ a lot: 76 on iCE40, where each `SB_MAC16` also does the adding and accumulating, against 419 on ECP5, where `MULT18X18D` has no accumulator and the adder tree and the 32-bit total go into logic.
-- The unit lowers the core's clock speed by about 13 MHz (15%), because the multiply, adder tree and accumulate happen in one cycle and that path is now the longest one. At those clock speeds, one inference with the unrolled scalar loop takes about 31 ms on the core alone (2,583,289 cycles at about 84 MHz) and about 8 ms with the unit (577,451 cycles at about 71 MHz): roughly **3.8x faster in time**, not 4.5x. A two-stage multiplier would recover clock speed at the price of one more cycle per MAC instruction; that is the obvious next experiment.
+- The unit lowers the core's clock speed by about 12 MHz (14%, best seed of three), because the multiply, adder tree and accumulate happen in one cycle and that path is now the longest one. At those clock speeds, one inference with the unrolled scalar loop takes about 30.5 ms on the core alone (2,583,289 cycles at 84.8 MHz) and about 7.9 ms with the unit (577,451 cycles at 72.8 MHz): roughly **3.8x faster in time**, not 4.5x. A two-stage multiplier would recover clock speed at the price of one more cycle per MAC instruction; that is the obvious next experiment.
 - The multiplier matters for what you compare against. This baseline core has the fast multiplier. With PicoRV32's small serial multiplier the scalar code would be much slower and the gain larger; that is not measured here.
 
 ---
@@ -265,7 +265,7 @@ flowchart LR
     Q --> F2["Bare-metal firmware on Spike<br/>bit-exact with the engine"]
     R --> S["Firmware with the MAC<br/>instructions, bit-exact"]
     F2 --> S
-    S -.-> K["Full core in RTL simulation<br/>planned"]
+    S --> K["PicoRV32 SoC in RTL simulation<br/>bit-exact, run in CI"]
 ```
 
 ---
@@ -327,8 +327,15 @@ Spike runs the custom-0 instructions through `firmware/spike_ext/simd_mac_ext.cc
 make -s -C firmware run > build/firmware_run.txt
 bash hardware/scripts/cosim.sh > build/cosim.txt
 bash hardware/scripts/fmax.sh > build/fmax.txt      # optional
+bash hardware/scripts/soc_sim.sh isa   > build/soc_isa.txt
+bash hardware/scripts/soc_sim.sh mnist > build/soc_mnist.txt
+bash hardware/scripts/soc_sweep.sh     > build/soc_sweep.txt   # optional
+bash hardware/scripts/soc_synth.sh     > build/soc_synth.txt   # optional
 python scripts/record_results.py
+python scripts/gen_benchmarks.py                   # rewrites BENCHMARKS.md from web/js/results.js
 ```
+
+[`BENCHMARKS.md`](BENCHMARKS.md) lists every measured number with the tool and command behind it, and what is not measured.
 
 CI runs all of the above on every push, including the whole-SoC RTL simulation, and fails if the regenerated model, calibration constants, golden vectors or web demo numbers differ from the committed ones, if the RTL and Spike instruction counts disagree, or if the self-test passes on a core without the MAC unit.
 
@@ -352,6 +359,8 @@ hardware/fpga/      timing harness for place-and-route
 hardware/docs/      microarchitecture spec
 firmware/           bare-metal RV32IM inference for Spike and PicoRV32: startup code, linker scripts, I/O
 web/                browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
+scripts/            record_results.py (web/js/results.js), gen_benchmarks.py (BENCHMARKS.md)
+BENCHMARKS.md       every measured number, how it was measured, what is not measured
 docs/               quantization spec, benchmark notes, figures
 ```
 
@@ -393,7 +402,7 @@ The order matters: the software optimisation changes the cycle counts, so it com
 | 1, Fri 13 Nov | Core boots and the custom instructions work | The ISA self-test passes on the PicoRV32 RTL, and fails without the unit | Done |
 | 2 and 3, Wed 18 Nov | MNIST on the core, baseline, **wait-state sweep**, cost | Bit-exact on all 10 images with measured cycles, the same core without the unit, cycles for 0 to 16 wait states, area and Fmax with and without the unit | Done |
 | 4, Wed 18 Nov | **Software optimisation** | Unrolled loops on both sides (a fair baseline), bit-exact, measured on the RTL, with a before/after table. Two neurons per activation load was costed and rejected | Done |
-| 5, Thu 19 Nov | Automate and publish | CI runs the SoC simulation (done). `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Planned |
+| 5, Thu 19 Nov | Automate and publish | CI runs the SoC simulation. `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Done |
 | 20 to 23 Nov | Technical report (4 pages) and SOP draft | Report uses only the numbers from `BENCHMARKS.md` | Planned |
 | 24 to 25 Nov | Buffer, tag the final commit `v1.0` | Project finished on 25 Nov | Planned |
 | Optional | **Real cycle trace** on the website | Replays the executed instruction stream from the RTL simulation, scalar vs MAC side by side. Only if there is time before the report | Optional |
