@@ -32,10 +32,10 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | INT8 quantization library (affine, per-channel, Q31 requantization, BN folding, pooling, `.qbin` format) | Done, unit tested on host |
 | SIMD MAC RTL (`hardware/rtl/simd_mac.v`) + `custom-0` decoder wrapper | Done, synthesized and verified against golden vectors |
 | INT8 evaluation on the real MNIST test set (calibrated activations) | Done: 98.21% INT8 vs 98.23% FP32 |
-| Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 818,685 instructions per inference, outputs match the C++ engine |
+| Bare-metal RV32IM firmware on Spike, scalar baseline | Done: 822,232 instructions per inference (435,282 with the loop unrolled), outputs match the C++ engine |
 | Internal-accumulator instructions (`simd_macc` / `simd_macz`) for two-read-port cores | Done: wrapper verified on 25,088 instructions, costs 1 LUT and no Fmax |
-| Same firmware with the custom MAC instructions | Done: 162,870 instructions per inference, **5.03x fewer**, outputs unchanged |
-| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | Done: bit-exact, 4.80x fewer clock cycles, area and Fmax measured |
+| Same firmware with the custom MAC instructions | Done: 95,120 instructions per inference, **4.58x fewer** than an equally unrolled scalar loop, outputs unchanged |
+| MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | Done: bit-exact, **4.47x fewer clock cycles** than an unrolled scalar loop, area and Fmax measured |
 | Technical report | Planned |
 
 Everything listed as done below can be reproduced with the commands in [Reproduce](#reproduce).
@@ -55,7 +55,7 @@ flowchart LR
     D --> G
     G -->|"0 mismatches"| H["Verified"]
     B --> I["RV32IM firmware on Spike<br/>scalar baseline, bit-exact"]
-    I --> J2["Firmware with the MAC<br/>instructions: 5.03x fewer"]
+    I --> J2["Firmware with the MAC<br/>instructions: 4.58x fewer"]
     J2 -.-> J["PicoRV32 + MAC in RTL<br/>in progress"]
 
     classDef done fill:#0b3a53,stroke:#38bdf8,color:#e2e8f0
@@ -156,46 +156,55 @@ Weights are quantized symmetrically (zero point 0, per tensor), which is what th
 
 `firmware/` runs the whole network on a simulated RV32IM processor (Spike): freestanding C, integer-only, no heap, no standard library, weights compiled in as constant arrays. On the ten example test images (one per digit) it predicts every label correctly, and every output byte matches the C++ engine; the firmware checks this itself and exits with an error otherwise.
 
-The firmware runs the network three times per image and checks all three against the engine:
+The firmware runs the network five times per image and checks every output byte of all five against the engine:
 
-| Version (RV32IM, `gcc -O2`) | Instructions per inference | Inner loop | vs scalar |
-|---|---|---|---|
-| Scalar C | 818,685 | about 8 instructions per multiply-accumulate | 1x |
-| `simd_mac_clr` + `add` | 188,968 | 7 instructions per 4 multiply-accumulates | **4.33x fewer** |
-| `simd_macz` / `simd_macc` | 162,870 | 6 instructions per 4 multiply-accumulates | **5.03x fewer** |
+| Version (RV32IM, `gcc -O2`) | Instructions per inference | Per multiply-accumulate |
+|---|---|---|
+| Scalar C, plain loop | 822,232 | about 8.1 |
+| Scalar C, loop unrolled 16 times | 435,282 | about 4.3 |
+| `simd_mac_clr` + `add` | 187,598 | about 7.4 per 4 |
+| `simd_macz` / `simd_macc` | 161,500 | about 6.4 per 4 |
+| `simd_macz` / `simd_macc`, loop unrolled 8 times | 95,120 | about 3.7 per 4 |
+
+The fair comparison is between the two unrolled versions, since unrolling helps both: **4.58x fewer instructions** with the custom instructions (95,120 against 435,282). Against the plain scalar loop the same code is 8.6x fewer, but that number mixes the effect of the hardware with the effect of unrolling.
 
 101,632 multiply-accumulates per inference; code and model take about 112 KB. Spike runs the custom-0 instructions through an extension library with the RTL's semantics (`firmware/spike_ext/`), checked by `firmware/isa_test.c` (19,005 checks against a C reference).
 
 What the numbers mean, and what they do not:
 
 - Spike executes one instruction per step, so `rdcycle` equals `rdinstret`: these are exact **instruction counts**, not pipeline cycles. Cycle-accurate numbers come from running the same firmware on a RISC-V core in RTL simulation (next section).
-- Both sides are compiled C at `-O2`, not hand-written assembly. The scalar loop does one multiply-accumulate per iteration; the MAC loop is now bound by its two loads per four multiply-accumulates. Unrolling it to drop the pointer steps and branches is the obvious next optimization.
+- Both sides are compiled C at `-O2`, not hand-written assembly. The scalar side is given the same effort as the MAC side: both loops are unrolled, and the scalar loop uses the per-neuron weight layout and the offline zero-point correction too. Unrolling further gives diminishing returns (the scalar loop went from 8 to 16 times, 454,257 to 435,282 instructions).
+- Instruction counts depend on how the compiler treats the code. The layer functions are forced inline and the per-image functions are kept separate, so the counts follow from the source and do not change when unrelated code is added.
 - The weights are packed four per word per neuron for the MAC versions; the per-neuron zero-point correction is computed offline (see Design notes).
 
 ### PicoRV32 core in RTL simulation
 
-The same firmware binary runs on [PicoRV32](https://github.com/YosysHQ/picorv32) (RV32IM with its fast multiplier, divider and barrel shifter, no caches) with the MAC unit attached through its PCPI interface (`hardware/soc/`). The whole SoC is simulated cycle by cycle from the Verilog with Yosys CXXRTL. All ten example images are **bit-exact** against the C++ engine, and the instruction counts match the Spike run exactly. Cycle counts, one inference, memory answering with no extra wait states:
+The same firmware binary runs on [PicoRV32](https://github.com/YosysHQ/picorv32) (RV32IM with its fast multiplier, divider and barrel shifter, no caches) with the MAC unit attached through its PCPI interface (`hardware/soc/`). The whole SoC is simulated cycle by cycle from the Verilog with Yosys CXXRTL. All ten example images are **bit-exact** against the C++ engine for all five versions, and the instruction counts match the Spike run exactly. Clock cycles for one inference, memory answering with no extra wait states:
 
-| Version | Instructions | Clock cycles | Cycles vs scalar |
+| Version | Instructions | Clock cycles | Cycles vs plain scalar |
 |---|---|---|---|
-| Scalar C | 818,685 | 4,396,685 | 1x |
-| `simd_mac_clr` + `add` | 188,968 | 1,020,829 | **4.31x fewer** |
-| `simd_macz` / `simd_macc` | 162,870 | 916,437 | **4.80x fewer** |
+| Scalar C, plain loop | 822,232 | 4,416,182 | 1x |
+| Scalar C, loop unrolled | 435,282 | 2,583,289 | 1.71x fewer |
+| `simd_mac_clr` + `add` | 187,598 | 1,014,656 | 4.35x fewer |
+| `simd_macz` / `simd_macc` | 161,500 | 908,620 | 4.86x fewer |
+| `simd_macz` / `simd_macc`, loop unrolled | 95,120 | 577,451 | 7.65x fewer |
 
-The speed-up in cycles (4.80x) is a little below the one in instructions (5.03x): the MAC loop averages 5.63 cycles per instruction against 5.37 for the scalar code, because a custom instruction goes through the PCPI handshake (the adapter issues it, then returns the result a cycle later). The same scalar run on the core **without** the unit takes exactly the same 4,396,685 cycles, so the unit does not slow down ordinary code.
+**The fair speed-up is 4.47x**: 2,583,289 cycles for the unrolled scalar loop against 577,451 for the unrolled MAC loop. The speed-up in cycles is a little below the one in instructions (4.58x) because a custom instruction goes through the PCPI handshake: the adapter issues it and returns the result a cycle later, so the MAC loop averages 6.1 cycles per instruction against 5.9 for the scalar loop. The same scalar code on the core **without** the unit takes exactly the same number of cycles, so the unit does not slow down ordinary code.
 
-**Slower memory.** The testbench adds wait states to every memory access. Same firmware, image 0:
+**Slower memory.** The testbench adds wait states to every memory access. Same binary, image 0, clock cycles per inference:
 
-| Wait states | Scalar cycles | `simd_macc` cycles | Speed-up |
+| Wait states | Unrolled scalar | Unrolled MAC | Speed-up |
 |---|---|---|---|
-| 0 | 4,396,685 | 916,437 | 4.80x |
-| 1 | 5,419,045 | 1,132,824 | 4.78x |
-| 2 | 6,441,405 | 1,374,619 | 4.69x |
-| 4 | 8,690,493 | 1,859,313 | 4.67x |
-| 8 | 13,188,669 | 2,828,701 | 4.66x |
-| 16 | 22,185,021 | 4,767,477 | 4.65x |
+| 0 | 2,583,289 | 577,451 | 4.47x |
+| 1 | 3,128,982 | 703,428 | 4.45x |
+| 2 | 3,674,675 | 854,813 | 4.30x |
+| 4 | 4,970,429 | 1,158,687 | 4.29x |
+| 8 | 7,561,937 | 1,766,435 | 4.28x |
+| 16 | 12,744,953 | 2,981,931 | 4.27x |
 
-The speed-up barely moves. PicoRV32 has no cache and fetches every instruction from memory, so memory time grows with the instruction count, and cutting instructions by 5x cuts memory time by about as much. A core with caches or tightly coupled memory would behave differently; that is not measured here.
+The speed-up barely moves. PicoRV32 has no cache and fetches every instruction from memory, so memory time grows with the instruction count, and cutting instructions by 4.6x cuts memory time by about as much. A core with caches or tightly coupled memory would behave differently; that is not measured here. The plain-loop and `simd_mac_clr` columns for each wait state are printed by `hardware/scripts/soc_sweep.sh`.
+
+**What was tried in software.** Unrolling is where the gain is: the unrolled scalar loop is 1.71x faster than the plain one, and the unrolled MAC loop is 1.57x faster than the plain MAC loop. Loading each activation word once for two neurons does not help with these instructions, because the internal accumulator holds only one running total; with `simd_mac_clr` and an `add` per neuron it would cost about 3.5 instructions per word against about 3 for the unrolled internal-accumulator loop (an estimate from the instruction counts, not a measurement, so it was not built).
 
 **Area and clock speed.** Yosys and nextpnr (`hardware/scripts/soc_synth.sh`). The core is built with the fast multiplier (`ENABLE_FAST_MUL`), divider and barrel shifter. ECP5 numbers are after place-and-route, three seeds; iCE40 is synthesis only, because the core has more pins than the UP5K package and the HX8K has no DSP blocks.
 
@@ -211,7 +220,7 @@ The speed-up barely moves. PicoRV32 has no cache and fetches every instruction f
 What this says:
 
 - The unit costs 34 flip-flops and 4 DSP blocks on both devices. LUTs differ a lot: 76 on iCE40, where each `SB_MAC16` also does the adding and accumulating, against 419 on ECP5, where `MULT18X18D` has no accumulator and the adder tree and the 32-bit total go into logic.
-- The unit lowers the core's clock speed by about 13 MHz (15%), because the multiply, adder tree and accumulate happen in one cycle and that path is now the longest one. At those clock speeds, one inference takes about 52 ms on the core alone (4,396,685 cycles at about 84 MHz) and about 13 ms with the unit (916,437 cycles at about 71 MHz): roughly **4x faster in time**, not 4.8x. A two-stage multiplier would recover clock speed at the price of one more cycle per MAC instruction; that is the obvious next experiment.
+- The unit lowers the core's clock speed by about 13 MHz (15%), because the multiply, adder tree and accumulate happen in one cycle and that path is now the longest one. At those clock speeds, one inference with the unrolled scalar loop takes about 31 ms on the core alone (2,583,289 cycles at about 84 MHz) and about 8 ms with the unit (577,451 cycles at about 71 MHz): roughly **3.8x faster in time**, not 4.5x. A two-stage multiplier would recover clock speed at the price of one more cycle per MAC instruction; that is the obvious next experiment.
 - The multiplier matters for what you compare against. This baseline core has the fast multiplier. With PicoRV32's small serial multiplier the scalar code would be much slower and the gain larger; that is not measured here.
 
 ---
@@ -362,17 +371,17 @@ gantt
     section Hardware
     Core boots, custom instructions :done, h1, 2026-11-13, 1d
     MNIST on the core, sweep, area  :done, h2, 2026-11-18, 1d
-    Software optimisation           :h4, 2026-11-19, 1d
+    Software optimisation           :done, h4, 2026-11-18, 1d
     section Publish
-    CI, BENCHMARKS.md, website      :p1, 2026-11-20, 1d
+    CI, BENCHMARKS.md, website      :p1, 2026-11-19, 1d
     section Write-up
-    Technical report and SOP draft  :w1, 2026-11-21, 3d
+    Technical report and SOP draft  :w1, 2026-11-20, 4d
     Buffer, tag the final commit    :w2, 2026-11-24, 2d
 ```
 
 1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
-2. ~~Freestanding C firmware for RV32IM on Spike, scalar and with the custom instructions.~~ Done: 818,685 vs 162,870 instructions per inference (5.03x fewer), bit-exact.
-3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Done: bit-exact, 4.80x fewer clock cycles, area and Fmax measured (see the results above and the plan below).
+2. ~~Freestanding C firmware for RV32IM on Spike, scalar and with the custom instructions.~~ Done: 435,282 vs 95,120 instructions per inference (4.58x fewer, both loops unrolled), bit-exact.
+3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Done: bit-exact, 4.47x fewer clock cycles than an unrolled scalar loop, area and Fmax measured (see the results above and the plan below).
 4. Short technical report.
 
 ### Execution plan (13 to 25 Nov)
@@ -383,9 +392,9 @@ The order matters: the software optimisation changes the cycle counts, so it com
 |---|---|---|---|
 | 1, Fri 13 Nov | Core boots and the custom instructions work | The ISA self-test passes on the PicoRV32 RTL, and fails without the unit | Done |
 | 2 and 3, Wed 18 Nov | MNIST on the core, baseline, **wait-state sweep**, cost | Bit-exact on all 10 images with measured cycles, the same core without the unit, cycles for 0 to 16 wait states, area and Fmax with and without the unit | Done |
-| 4, Thu 19 Nov | **Software optimisation** | Unrolled inner loop and fewer loads (for example two neurons per activation load). Still bit-exact, measured on the RTL, with a before/after table and a note on where the cycles go | Next |
-| 5, Fri 20 Nov | Automate and publish | CI runs the SoC simulation. `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Planned |
-| 21 to 23 Nov | Technical report (4 pages) and SOP draft | Report uses only the numbers from `BENCHMARKS.md` | Planned |
+| 4, Wed 18 Nov | **Software optimisation** | Unrolled loops on both sides (a fair baseline), bit-exact, measured on the RTL, with a before/after table. Two neurons per activation load was costed and rejected | Done |
+| 5, Thu 19 Nov | Automate and publish | CI runs the SoC simulation. `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Planned |
+| 20 to 23 Nov | Technical report (4 pages) and SOP draft | Report uses only the numbers from `BENCHMARKS.md` | Planned |
 | 24 to 25 Nov | Buffer, tag the final commit `v1.0` | Project finished on 25 Nov | Planned |
 | Optional | **Real cycle trace** on the website | Replays the executed instruction stream from the RTL simulation, scalar vs MAC side by side. Only if there is time before the report | Optional |
 
