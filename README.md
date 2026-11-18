@@ -1,4 +1,4 @@
-# riscv-edge-ai
+# Riscv-Edge-AI
 
 Integer-only neural network inference for small RISC-V cores, with a custom 4-lane INT8 multiply-accumulate (MAC) instruction designed in Verilog.
 
