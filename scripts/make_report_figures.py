@@ -143,6 +143,66 @@ def fig_neuron(trace):
     plt.close(fig)
 
 
+def best_fmax(block):
+    return max(block["fmaxMHz"])
+
+
+def bar_pair(ax, labels, values, colors, fmt, title, ylabel=None, ylim=None):
+    bars = ax.bar(labels, values, color=colors, width=0.62)
+    top = ylim or max(values) * 1.5
+    for bar, v in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, v + top * 0.02, fmt.format(v), ha="center", va="bottom", color=INK, fontsize=8)
+    ax.set_ylim(0, top)
+    ax.set_title(title, fontsize=8.5, color=INK, loc="left", fontweight="bold")
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    ax.yaxis.grid(True, color=GRID, linewidth=0.6)
+    ax.set_axisbelow(True)
+
+
+def fig_summary(results):
+    fw, soc, area = results["firmware"], results["soc"], results["socArea"]["ecp5"]
+    f_base, f_mac = best_fmax(area["coreNoMac"]), best_fmax(area["coreMac"])
+    t_base = soc["optScalarCycles"] / f_base / 1e3
+    t_mac = soc["optMacCycles"] / f_mac / 1e3
+    labels = ["Scalar", "With\nMAC unit"]
+    cols = [ORANGE, BLUE]
+    fig, axes = plt.subplots(1, 4, figsize=(6.7, 2.05))
+    bar_pair(axes[0], labels, [fw["optScalarInstructionsPerInference"] / 1e3, fw["optMacInstructionsPerInference"] / 1e3],
+             cols, "{:.0f}", "Instructions", "thousands per inference")
+    bar_pair(axes[1], labels, [soc["optScalarCycles"] / 1e6, soc["optMacCycles"] / 1e6],
+             cols, "{:.2f}", "Clock cycles", "millions per inference")
+    bar_pair(axes[2], labels, [t_base, t_mac], cols, "{:.1f}", "Time on ECP5", "milliseconds per inference")
+    bar_pair(axes[3], ["FP32", "INT8\nintegers"], [98.23, 98.21], [GREY, TEAL], "{:.2f}", "MNIST accuracy", "per cent", ylim=150)
+    axes[3].set_yticks([0, 25, 50, 75, 100])
+    ratios = [fw["optScalarInstructionsPerInference"] / fw["optMacInstructionsPerInference"],
+              soc["optScalarCycles"] / soc["optMacCycles"], t_base / t_mac]
+    words = ["fewer", "fewer", "faster"]
+    for ax, r, w in zip(axes[:3], ratios, words):
+        ax.text(0.5, 0.93, f"{r:.2f}\u00d7 {w}", transform=ax.transAxes, ha="center", va="top", color=BLUE, fontsize=8.5, fontweight="bold")
+    axes[3].text(0.5, 0.93, "same accuracy", transform=axes[3].transAxes, ha="center", va="top", color=TEAL, fontsize=8.5, fontweight="bold")
+    for ax in axes:
+        ax.tick_params(axis="x", labelsize=7.5)
+    fig.tight_layout(w_pad=0.8)
+    fig.savefig(OUT / "fig_summary.pdf")
+    plt.close(fig)
+
+
+def fig_cost(results):
+    area = results["socArea"]["ecp5"]
+    labels = ["Without\nunit", "With\nunit"]
+    cols = [ORANGE, BLUE]
+    fig, axes = plt.subplots(1, 3, figsize=(6.2, 1.9))
+    bar_pair(axes[0], labels, [area["coreNoMac"]["lut4"], area["coreMac"]["lut4"]], cols, "{:,}", "LUT4 (logic)")
+    bar_pair(axes[1], labels, [area["coreNoMac"]["dsp"], area["coreMac"]["dsp"]], cols, "{}", "DSP blocks")
+    bar_pair(axes[2], labels, [best_fmax(area["coreNoMac"]), best_fmax(area["coreMac"])], cols, "{:.1f}", "Clock speed (MHz)")
+    for ax in axes:
+        ax.tick_params(axis="x", labelsize=7.5)
+    fig.tight_layout(w_pad=1.0)
+    fig.savefig(OUT / "fig_cost.pdf")
+    plt.close(fig)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     results = load_js_object(ROOT / "web" / "js" / "results.js")
@@ -150,6 +210,8 @@ def main():
     fig_versions(results)
     fig_waitstates(results)
     fig_neuron(trace)
+    fig_summary(results)
+    fig_cost(results)
     print("wrote", ", ".join(sorted(p.name for p in OUT.glob("*.pdf"))))
 
 

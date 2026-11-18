@@ -32,8 +32,15 @@
 \maketitle
 
 \begin{abstract}
-\noindent A plain RV32IM core multiplies the four 8-bit values packed in a register one at a time, which is slow for neural networks on small cores that have no floating-point unit. I designed a 4-lane INT8 multiply-accumulate (MAC) unit in Verilog, mapped it to the RISC-V \texttt{custom-0} opcode as four instructions, attached it to the PicoRV32 core, and measured one inference of an integer-only 784-128-10 MLP in a cycle-accurate simulation of the whole SoC. Against an equally unrolled scalar loop, the custom instructions need 4.58$\times$ fewer instructions and 4.47$\times$ fewer clock cycles (4.27$\times$ with 16 wait states on every memory access). On an ECP5 FPGA the unit costs 419 LUT4, 34 flip-flops and 4 DSP blocks and lowers the clock speed by 14\%, so the estimated gain in time is 3.8$\times$. The integer-only network reaches 98.21\% on MNIST, against 98.23\% in FP32. A cycle trace of one neuron shows that 73\% of the cycles of the accelerated loop go on loading operands and only 19\% on the custom instruction. All results come from simulation and synthesis, not from silicon.
+\noindent Small processors without floating-point hardware are slow at running neural networks. I added a custom multiply-accumulate instruction to a RISC-V core: one instruction multiplies four pairs of 8-bit numbers and adds the products. Recognising a handwritten digit (MNIST) takes \textbf{4.5$\times$ fewer clock cycles} than an equally optimised scalar program, and about \textbf{3.8$\times$ less time} on an FPGA once the 14\% lower clock speed is counted, while accuracy stays at 98.2\%. The unit costs 419 LUT4 and 4 DSP blocks. Every number comes from simulation and synthesis, not from silicon; each one is reproducible from the public repository and checked against a reference model.
 \end{abstract}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_summary.pdf}
+\caption{Key results. Scalar is the unrolled scalar loop, and ``with MAC unit'' is the unrolled loop that uses the custom instructions. Time is estimated from simulated cycles and the best place-and-route clock speed on an ECP5 FPGA.}
+\label{fig:summary}
+\end{figure}
 
 \section{Introduction}
 Cheap microcontrollers that have no floating-point unit can still run neural networks if the network uses integer arithmetic. A 32-bit RISC-V register holds four 8-bit values, but the base multiply instruction works on one pair at a time. A custom instruction that multiplies four pairs and adds the products is an obvious fit.
@@ -246,6 +253,13 @@ MAC unit alone, iCE40 & 76 & 34 & 4 & \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{figures/fig_cost.pdf}
+\caption{Cost of the unit on ECP5: the whole SoC without and with it (after place-and-route, best of three seeds for clock speed).}
+\label{fig:cost}
+\end{figure}
 
 The unit costs 34 flip-flops and 4 DSP blocks on both devices. LUTs differ a lot: on iCE40 each \texttt{SB\_MAC16} also adds and accumulates, while on ECP5 the multipliers have no accumulator, so the adder tree and the 32-bit total go into logic. On the full ECP5 SoC the difference is 545 LUT4, more than the 419 of the unit alone; I did not separate the rest.
 
