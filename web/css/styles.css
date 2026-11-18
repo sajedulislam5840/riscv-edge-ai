@@ -122,6 +122,35 @@ code { font-family: var(--mono); font-size: 0.88em; }
 .proof-intro { color: var(--ink-2); max-width: 70ch; margin: 0; }
 .proof-note { color: var(--muted); font-size: 0.95rem; margin-top: 2.25rem; max-width: 70ch; }
 
+/* ------------------------------------------------------------ cycle trace */
+.trace { padding: 4rem 0 3rem; border-top: 1px solid var(--rule); }
+.trace-lede { color: var(--ink-2); max-width: 72ch; margin: 0.75rem 0 0; }
+.tr-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 1.5rem; }
+.tr-btn { font: 500 0.95rem var(--sans); padding: 0.55rem 1.2rem; border-radius: 999px; border: 1px solid var(--ink); background: var(--ink); color: #fff; cursor: pointer; }
+.tr-btn.secondary { background: transparent; color: var(--ink); }
+.tr-btn:focus-visible, .tr-speed select:focus-visible, .tr-scrub:focus-visible { outline: 2px solid var(--c1); outline-offset: 2px; }
+.tr-speed { font-size: 0.9rem; color: var(--ink-2); display: flex; align-items: center; gap: 0.5rem; }
+.tr-speed select { font: 0.9rem var(--sans); padding: 0.4rem 0.6rem; border-radius: 8px; border: 1px solid var(--rule-2); background: var(--panel); color: var(--ink); }
+.tr-scrub { flex: 1 1 14rem; min-width: 10rem; accent-color: var(--c5); }
+.tr-lane { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 1rem 1.1rem 0.9rem; margin-top: 1rem; }
+.tr-lane-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem 1rem; flex-wrap: wrap; }
+.tr-title { font-family: var(--display); font-weight: 600; font-size: 1.15rem; }
+.tr-title code { font-size: 0.85em; }
+.tr-clock { font: 0.85rem var(--mono); color: var(--ink-2); }
+.tr-canvas { width: 100%; height: 64px; display: block; margin-top: 0.75rem; border-radius: 6px; background: var(--paper); }
+.tr-strip { display: flex; gap: 2px; margin-top: 0.6rem; min-height: 1.9rem; }
+.tr-chip { flex: 1 1 0; min-width: 3.2rem; font: 500 0.72rem var(--mono); padding: 0.3rem 0.2rem; text-align: center; border-radius: 4px; color: #fff; overflow: hidden; white-space: nowrap; }
+.tr-chip.is-now { outline: 2px solid var(--ink); outline-offset: 1px; }
+.tr-strip-note { font-size: 0.85rem; color: var(--muted); align-self: center; }
+.tr-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin-top: 0.65rem; font-size: 0.82rem; color: var(--ink-2); }
+.tr-legend i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.35rem; vertical-align: -0.05rem; }
+.tr-legend b { font: 500 0.82rem var(--mono); color: var(--ink); }
+.tr-axis { position: relative; height: 1.2rem; margin: 0.4rem 1.1rem 0; font: 0.72rem var(--mono); color: var(--muted); }
+.tr-axis span { position: absolute; transform: translateX(-50%); }
+.tr-axis span:first-child { transform: none; }
+.tr-summary { margin: 1.25rem 0 0; max-width: 72ch; color: var(--ink-2); }
+.tr-note { margin: 0.75rem 0 0; max-width: 72ch; color: var(--muted); font-size: 0.9rem; }
+
 /* ------------------------------------------------------------ demo page frame */
 .secnav { display: flex; justify-content: center; position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 .secnav a { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.8rem 1rem; font-size: 0.9rem; color: var(--ink-2); text-decoration: none; white-space: nowrap; }

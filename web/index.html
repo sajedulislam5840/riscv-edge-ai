@@ -98,6 +98,52 @@
       </ol>
     </section>
 
+    <section id="trace" class="trace" aria-labelledby="trace-title">
+      <h2 id="trace-title">One neuron, cycle by cycle</h2>
+      <p class="trace-lede">
+        This is not an animation drawn by hand. It replays what the PicoRV32 core did, recorded cycle by cycle from the Verilog simulation:
+        the dot product of one hidden neuron (layer 1, neuron 0) for the first test image, a handwritten 7. The first lane is the unrolled
+        scalar loop, the second uses the custom instruction. Both compute the same number.
+      </p>
+      <div class="tr-controls">
+        <button class="tr-btn" id="tr-play" type="button">Play</button>
+        <button class="tr-btn secondary" id="tr-restart" type="button">Restart</button>
+        <label class="tr-speed">Speed
+          <select id="tr-speed">
+            <option value="60">Instruction by instruction</option>
+            <option value="600">Slow</option>
+            <option value="2500" selected>Normal</option>
+            <option value="10000">Fast</option>
+          </select>
+        </label>
+        <input id="tr-scrub" class="tr-scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Position in clock cycles" />
+      </div>
+      <div class="tr-lane" id="tr-lane-scalar">
+        <div class="tr-lane-head">
+          <span class="tr-title">Scalar loop, unrolled</span>
+          <span class="tr-clock"><span data-tr="clock">0</span> cycles · <span data-tr="status">waiting</span></span>
+        </div>
+        <canvas class="tr-canvas" data-tr="canvas" role="img" aria-label="Where the clock cycles of the scalar loop go, over time"></canvas>
+        <div class="tr-strip" data-tr="strip" aria-label="Instructions being executed"></div>
+        <div class="tr-legend" data-tr="legend"></div>
+      </div>
+      <div class="tr-lane" id="tr-lane-mac">
+        <div class="tr-lane-head">
+          <span class="tr-title">With <code>simd_macz</code> / <code>simd_macc</code>, unrolled</span>
+          <span class="tr-clock"><span data-tr="clock">0</span> cycles · <span data-tr="status">waiting</span></span>
+        </div>
+        <canvas class="tr-canvas" data-tr="canvas" role="img" aria-label="Where the clock cycles of the MAC loop go, over time"></canvas>
+        <div class="tr-strip" data-tr="strip" aria-label="Instructions being executed"></div>
+        <div class="tr-legend" data-tr="legend"></div>
+      </div>
+      <div class="tr-axis" id="tr-axis" aria-hidden="true"></div>
+      <p class="tr-summary" id="tr-summary"></p>
+      <p class="tr-note">
+        Recorded by <code>hardware/scripts/soc_trace.sh</code> from the RTL simulation, memory with no wait states, and checked in CI so it cannot drift.
+        Every chip is one executed instruction, as wide as the clock cycles it took.
+      </p>
+    </section>
+
     <section class="proof" aria-labelledby="proof-title">
       <h2 id="proof-title">Numbers you can rerun</h2>
       <div class="proof-grid">
@@ -147,6 +193,8 @@
   <script src="js/quant_params.js?v=9"></script>
   <script src="js/model_int8.js?v=9"></script>
   <script src="js/results.js?v=9"></script>
+  <script src="js/trace.js?v=9"></script>
+  <script src="js/trace_view.js?v=9"></script>
   <script src="js/landing.js?v=9"></script>
 </body>
 </html>
