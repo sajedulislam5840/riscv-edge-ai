@@ -19,6 +19,7 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
   <a href="#verified-results">Results</a> ·
   <a href="#how-it-fits-together">Architecture</a> ·
   <a href="BENCHMARKS.md">Benchmarks</a> ·
+  <a href="docs/report/report.pdf">Technical report</a> ·
   <a href="#reproduce">Reproduce</a> ·
   <a href="#limitations-and-future-work">Limitations</a>
 </p>
@@ -37,6 +38,8 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | Cost of the unit on an ECP5 FPGA | 4 DSP blocks, 419 LUTs, 34 flip-flops |
 
 Every number is produced by a command in [Reproduce](#reproduce), recorded in `web/js/results.js`, and checked by CI. [`BENCHMARKS.md`](BENCHMARKS.md) lists how each one is measured and what is not measured.
+
+The design, the verification and a cycle trace of one neuron are written up in a six-page [technical report](docs/report/report.pdf) (LaTeX source and figures in [`docs/report/`](docs/report)).
 
 ---
 
@@ -338,6 +341,13 @@ CI runs all of the above on every push, including the whole-SoC RTL simulation, 
 
 To retrain from scratch: `python benchmarks/mnist/train_and_export.py` (NumPy only), then run the export again.
 
+**Technical report** (needs matplotlib and a LaTeX installation with `latexmk`). The figures are drawn from `web/js/results.js` and `web/js/trace.js`, so they follow the recorded numbers:
+
+```bash
+python3 scripts/make_report_figures.py
+cd docs/report && latexmk -pdf report.tex
+```
+
 ---
 
 ## Repository layout
@@ -356,9 +366,10 @@ hardware/fpga/      timing harness for place-and-route
 hardware/docs/      microarchitecture spec
 firmware/           bare-metal RV32IM inference for Spike and PicoRV32: startup code, linker scripts, I/O
 web/                landing page (with a cycle-by-cycle replay of one neuron) and browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
-scripts/            record_results.py (web/js/results.js), gen_benchmarks.py (BENCHMARKS.md)
+scripts/            record_results.py (web/js/results.js), gen_benchmarks.py (BENCHMARKS.md), make_trace.py, make_report_figures.py
 BENCHMARKS.md       every measured number, how it was measured, what is not measured
 docs/               quantization spec, figures
+docs/report/        six-page technical report (LaTeX source, PDF, figures)
 ```
 
 ---

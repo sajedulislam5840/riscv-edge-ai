@@ -26,3 +26,10 @@ hardware/rtl/synth_*.txt
 *.swp
 .DS_Store
 Thumbs.db
+
+# LaTeX build files (the PDF and the figures are committed)
+docs/report/*.aux
+docs/report/*.fdb_latexmk
+docs/report/*.fls
+docs/report/*.out
+docs/report/*.synctex.gz
