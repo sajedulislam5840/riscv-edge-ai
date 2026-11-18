@@ -32,15 +32,8 @@
 \maketitle
 
 \begin{abstract}
-\noindent Small processors without floating-point hardware are slow at running neural networks. I added a custom multiply-accumulate instruction to a RISC-V core: one instruction multiplies four pairs of 8-bit numbers and adds the products. Recognising a handwritten digit (MNIST) takes \textbf{4.5$\times$ fewer clock cycles} than an equally optimised scalar program, and about \textbf{3.8$\times$ less time} on an FPGA once the 14\% lower clock speed is counted, while accuracy stays at 98.2\%. The unit costs 419 LUT4 and 4 DSP blocks. Every number comes from simulation and synthesis, not from silicon; each one is reproducible from the public repository and checked against a reference model.
+\noindent Small, low-cost processors usually have no floating-point unit, yet we keep asking them to recognise images. I gave a RISC-V core one new instruction that does four 8-bit multiplications and adds the results in a single step. A handwritten-digit network that needed 2.58 million clock cycles now needs 0.58 million: \textbf{4.5$\times$ fewer cycles} at the same 98.2\% accuracy. The new hardware slows the clock by 14\%, so on an FPGA the real gain in time is \textbf{3.8$\times$}, for 419 LUT4 and 4 DSP blocks. The comparison is against an equally optimised scalar program, not a deliberately slow one. All results come from cycle-accurate simulation and synthesis, not from silicon; each can be reproduced from the public repository and is checked against a reference model.
 \end{abstract}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\textwidth]{figures/fig_summary.pdf}
-\caption{Key results. Scalar is the unrolled scalar loop, and ``with MAC unit'' is the unrolled loop that uses the custom instructions. Time is estimated from simulated cycles and the best place-and-route clock speed on an ECP5 FPGA.}
-\label{fig:summary}
-\end{figure}
 
 \section{Introduction}
 Cheap microcontrollers that have no floating-point unit can still run neural networks if the network uses integer arithmetic. A 32-bit RISC-V register holds four 8-bit values, but the base multiply instruction works on one pair at a time. A custom instruction that multiplies four pairs and adds the products is an obvious fit.
@@ -70,6 +63,24 @@ The idea is not new. Packed 8-bit multiply-accumulate instructions appear in the
 The network is a 784-128-10 MLP trained in NumPy. Values are quantised as $q=\mathrm{clamp}(\mathrm{round}(r/S)+Z,-128,127)$. Weights are symmetric ($Z_W=0$), activations are asymmetric, and each layer is requantised with a Q31 multiplier and a shift, so inference has no floating-point operation. One inference takes 101,632 multiply-accumulates (784$\times$128 + 128$\times$10). INT8 weights need 101.6~KB, against 406.4~KB in FP32.
 
 A layer needs $\sum_j (q_{x,j}-Z_x)\,w_j$, but the MAC unit multiplies raw signed bytes. Because the weights are symmetric, this splits into $\sum_j q_{x,j}w_j - Z_x\sum_j w_j$. The first sum is what the instruction computes. The second is a constant per output neuron and is folded into the bias offline. The test-vector generator checks this identity for every neuron.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[font=\footnotesize,node distance=5mm,
+  blk/.style={draw,rounded corners=2pt,minimum height=11mm,align=center,inner sep=3pt},
+  mac/.style={blk,fill=blue!12},
+  arr/.style={-{Stealth[length=2mm]},thick}]
+\node[blk] (img) {28$\times$28 image\\784 bytes};
+\node[blk,right=of img] (q) {Quantise\\to INT8};
+\node[mac,right=of q] (l1) {Layer 1\\784$\to$128\\100,352 MACs};
+\node[blk,right=of l1] (r) {ReLU and\\requantise\\(Q31, shift)};
+\node[mac,right=of r] (l2) {Layer 2\\128$\to$10\\1,280 MACs};
+\node[blk,right=of l2] (am) {Largest\\of 10\\= digit};
+\foreach \a/\b in {img/q,q/l1,l1/r,r/l2,l2/am} \draw[arr] (\a) -- (\b);
+\end{tikzpicture}
+\caption{The network as the firmware runs it. Only the two shaded layers use the custom instruction; everything else is integer arithmetic on a plain RV32IM core.}
+\label{fig:pipeline}
+\end{figure}
 
 \subsection{The MAC unit and its instructions}
 The unit (Figure~\ref{fig:datapath}) takes two 32-bit registers that each hold four signed INT8 values and computes
@@ -130,6 +141,29 @@ Instruction & \texttt{funct7} & Operation \\
 \end{tabular}
 \end{center}
 
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[font=\footnotesize,
+  f/.style={draw,minimum height=8mm,align=center,inner sep=0pt}]
+\node[f,minimum width=34mm,fill=blue!10] (a) at (0,0) {\texttt{funct7}\\selects the form};
+\node[f,minimum width=21mm,right=0pt of a] (b) {\texttt{rs2}\\4 bytes};
+\node[f,minimum width=21mm,right=0pt of b] (c) {\texttt{rs1}\\4 bytes};
+\node[f,minimum width=15mm,right=0pt of c] (d) {\texttt{funct3}\\000};
+\node[f,minimum width=21mm,right=0pt of d] (e) {\texttt{rd}\\result};
+\node[f,minimum width=34mm,right=0pt of e,fill=orange!15] (g) {\texttt{opcode}\\0001011 = 0x0B};
+
+\node[above=1pt of a.north west,anchor=south west] {31};
+\node[above=1pt of a.north east,anchor=south east] {25};
+\node[above=1pt of b.north east,anchor=south east] {20};
+\node[above=1pt of c.north east,anchor=south east] {15};
+\node[above=1pt of d.north east,anchor=south east] {12};
+\node[above=1pt of e.north east,anchor=south east] {7};
+\node[above=1pt of g.north east,anchor=south east] {0};
+\end{tikzpicture}
+\caption{Instruction format. The four instructions differ only in \texttt{funct7}, so one decoder check on the opcode and \texttt{funct3} is enough to route them to the unit.}
+\label{fig:encoding}
+\end{figure}
+
 \textbf{Two read ports.} The form \simd{mac} reads three registers (\texttt{rs1}, \texttt{rs2} and the old \texttt{rd}), but the PCPI port of PicoRV32 passes only two. \simd{macc} and \simd{macz} keep the running total inside the unit instead. Measured on an iCE40 UP5K, this change cost one LUT (84 to 85) and no clock speed. The total survives other instructions between MAC instructions but is not saved on a context switch, which suits bare-metal firmware.
 
 \textbf{Software.} Firmware emits the instructions with the standard \texttt{.insn} assembler directive, so the compiler is not modified. Spike runs them through an extension library with the same semantics as the Verilog.
@@ -173,9 +207,24 @@ Firmware outputs against the C++ engine, 5 versions & 10 images (one per digit) 
 
 \textbf{The checks can fail.} Flipping one adder in the RTL gives 24,444 mismatches. Breaking the accumulator feedback, or making \simd{macz} forget to clear, gives about 24,900 mismatches each. A core built without the unit stops on the first custom instruction, and continuous integration requires that, so the self-test is known to be able to fail. A one-bit fault injected into the adapter also fails the self-test.
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{figures/fig_faults.pdf}
+\caption{The check is able to fail. Each faulty version of the RTL is compared with the golden model on the same 25,088 vectors.}
+\label{fig:faults}
+\end{figure}
+
 \textbf{Continuous integration.} On every push, GitHub Actions rebuilds the engine, re-runs the RTL co-simulation, the Spike run and the whole-SoC simulation, compares each result with the recorded file, and fails if they differ. The wait-state sweep and the area and clock numbers depend on tool builds and take longer, so they are recorded by hand and are not re-checked there; the zero-wait row of the sweep is cross-checked against the SoC run.
 
 \section{Evaluation}
+\subsection{Results at a glance}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_summary.pdf}
+\caption{Key results. Scalar is the unrolled scalar loop, and ``with MAC unit'' is the unrolled loop that uses the custom instructions. Time is estimated from simulated cycles and the best place-and-route clock speed on an ECP5 FPGA.}
+\label{fig:summary}
+\end{figure}
+
 \subsection{Method}
 \textbf{Cycles.} The whole SoC (PicoRV32, the adapter, the unit and a memory model) is compiled from Verilog to C++ with Yosys CXXRTL and simulated cycle by cycle. The firmware reads \texttt{rdcycle}. Memory is a flat array that answers after a fixed number of wait states. PicoRV32 prefetches speculatively, so instruction boundaries in the trace are reconstructed from changes of the program counter and not from bus fetches. \textbf{Instructions} are counted in Spike and, separately, in the RTL; the two agree for every version.
 
@@ -222,6 +271,13 @@ The fair speed-up (2) against (5) is \textbf{4.58$\times$ in instructions} and \
 \includegraphics[width=0.84\textwidth]{figures/fig_versions.pdf}
 \caption{Clock cycles per inference for the five versions. The fair comparison is the two unrolled versions (orange and blue).}
 \label{fig:versions}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{figures/fig_gain.pdf}
+\caption{The same five versions as a gain over the plain scalar loop. Unrolling alone gives 1.71$\times$ in cycles; the custom instructions on top give a further 4.47$\times$.}
+\label{fig:gain}
 \end{figure}
 
 \subsection{Slower memory}

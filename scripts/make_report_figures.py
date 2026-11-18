@@ -203,6 +203,63 @@ def fig_cost(results):
     plt.close(fig)
 
 
+def fig_gain(results):
+    """Gain over the plain scalar loop for each firmware version, in instructions and in cycles."""
+    fw, soc = results["firmware"], results["soc"]
+    names = ["Scalar, plain loop", "Scalar, unrolled", "simd_mac_clr + add", "simd_macz / simd_macc",
+             "simd_macz / simd_macc, unrolled"]
+    ins = [fw["instructionsPerInference"], fw["optScalarInstructionsPerInference"], fw["macClrAddInstructionsPerInference"],
+           fw["macInstructionsPerInference"], fw["optMacInstructionsPerInference"]]
+    cyc = [soc["scalarCycles"], soc["optScalarCycles"], soc["macClrAddCycles"], soc["macCycles"], soc["optMacCycles"]]
+    gi = [ins[0] / v for v in ins]
+    gc = [cyc[0] / v for v in cyc]
+    fig, ax = plt.subplots(figsize=(6.2, 2.2))
+    y = list(range(len(names)))[::-1]
+    h = 0.36
+    b1 = ax.barh([v + h / 2 for v in y], gi, height=h, color=BLUE, label="fewer instructions")
+    b2 = ax.barh([v - h / 2 for v in y], gc, height=h, color=TEAL, label="fewer clock cycles")
+    for bars, vals in ((b1, gi), (b2, gc)):
+        for bar, v in zip(bars, vals):
+            ax.text(v + 0.1, bar.get_y() + bar.get_height() / 2, f"{v:.2f}x", va="center", fontsize=7.5, color=INK)
+    ax.set_yticks(y)
+    ax.set_yticklabels(names)
+    ax.set_xlim(0, max(gi) * 1.12)
+    ax.set_xlabel("Gain over the plain scalar loop (1.00x = no gain)")
+    ax.xaxis.grid(True, color=GRID, linewidth=0.6)
+    ax.set_axisbelow(True)
+    ax.legend(frameon=False, loc="upper right", fontsize=7.5)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_gain.pdf")
+    plt.close(fig)
+
+
+def fig_faults():
+    """Mismatches against the golden model when the RTL is deliberately broken.
+
+    These counts are the ones recorded in README.md (RTL verification), out of 25,088 vectors each.
+    """
+    rows = [("Correct RTL", 0, GREY), ("One adder flipped", 24444, RED),
+            ("Accumulator feedback broken", 24900, RED), ("simd_macz forgets to clear", 24900, RED)]
+    fig, ax = plt.subplots(figsize=(6.2, 1.7))
+    labels = [r[0] for r in rows][::-1]
+    vals = [r[1] for r in rows][::-1]
+    cols = [r[2] for r in rows][::-1]
+    bars = ax.barh(labels, vals, color=cols, height=0.6)
+    for bar, v, name in zip(bars, vals, labels):
+        txt = "0 mismatches" if v == 0 else (f"{v:,}" if v == 24444 else "about 24,900")
+        ax.text(v + 300, bar.get_y() + bar.get_height() / 2, txt, va="center", fontsize=7.5, color=INK)
+    ax.axvline(25088, color=INK, linewidth=0.8, linestyle="--")
+    ax.text(25088, 3.55, "all 25,088 vectors", ha="right", va="bottom", fontsize=7, color=INK)
+    ax.set_xlim(0, 31000)
+    ax.set_ylim(-0.5, 4.0)
+    ax.set_xlabel("Vectors that disagree with the golden model")
+    ax.xaxis.grid(True, color=GRID, linewidth=0.6)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_faults.pdf")
+    plt.close(fig)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     results = load_js_object(ROOT / "web" / "js" / "results.js")
@@ -212,6 +269,8 @@ def main():
     fig_neuron(trace)
     fig_summary(results)
     fig_cost(results)
+    fig_gain(results)
+    fig_faults()
     print("wrote", ", ".join(sorted(p.name for p in OUT.glob("*.pdf"))))
 
 
