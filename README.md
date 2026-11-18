@@ -36,7 +36,9 @@ The goal is simple: run useful AI models on cheap microcontrollers that have no 
 | Internal-accumulator instructions (`simd_macc` / `simd_macz`) for two-read-port cores | Done: wrapper verified on 25,088 instructions, costs 1 LUT and no Fmax |
 | Same firmware with the custom MAC instructions | Done: 95,120 instructions per inference, **4.58x fewer** than an equally unrolled scalar loop, outputs unchanged |
 | MAC unit inside a RISC-V core (PicoRV32), cycle-accurate RTL simulation | Done: bit-exact, **4.47x fewer clock cycles** than an unrolled scalar loop, area and Fmax measured |
-| Technical report | Planned |
+| CI on every push: unit tests, RTL co-simulation, synthesis and Fmax, Spike, whole-SoC simulation | Done: green, and it fails if a recorded number drifts |
+| `BENCHMARKS.md` and the web demo numbers | Done: generated from the recorded results, checked in CI |
+| Technical report (4 pages) | Planned, 20 to 23 Nov |
 
 Everything listed as done below can be reproduced with the commands in [Reproduce](#reproduce).
 
@@ -382,7 +384,7 @@ gantt
     MNIST on the core, sweep, area  :done, h2, 2026-11-18, 1d
     Software optimisation           :done, h4, 2026-11-18, 1d
     section Publish
-    CI, BENCHMARKS.md, website      :p1, 2026-11-19, 1d
+    CI, BENCHMARKS.md, website      :done, p1, 2026-11-18, 1d
     section Write-up
     Technical report and SOP draft  :w1, 2026-11-20, 4d
     Buffer, tag the final commit    :w2, 2026-11-24, 2d
@@ -391,7 +393,7 @@ gantt
 1. ~~Evaluate the INT8 pipeline on the real MNIST test set with calibrated activation scales.~~ Done (98.21%).
 2. ~~Freestanding C firmware for RV32IM on Spike, scalar and with the custom instructions.~~ Done: 435,282 vs 95,120 instructions per inference (4.58x fewer, both loops unrolled), bit-exact.
 3. Attach the MAC unit to PicoRV32 and run full inference in RTL simulation. Done: bit-exact, 4.47x fewer clock cycles than an unrolled scalar loop, area and Fmax measured (see the results above and the plan below).
-4. Short technical report.
+4. Short technical report (4 pages, numbers only from `BENCHMARKS.md`). Planned for 20 to 23 Nov.
 
 ### Execution plan (13 to 25 Nov)
 
@@ -402,7 +404,7 @@ The order matters: the software optimisation changes the cycle counts, so it com
 | 1, Fri 13 Nov | Core boots and the custom instructions work | The ISA self-test passes on the PicoRV32 RTL, and fails without the unit | Done |
 | 2 and 3, Wed 18 Nov | MNIST on the core, baseline, **wait-state sweep**, cost | Bit-exact on all 10 images with measured cycles, the same core without the unit, cycles for 0 to 16 wait states, area and Fmax with and without the unit | Done |
 | 4, Wed 18 Nov | **Software optimisation** | Unrolled loops on both sides (a fair baseline), bit-exact, measured on the RTL, with a before/after table. Two neurons per activation load was costed and rejected | Done |
-| 5, Thu 19 Nov | Automate and publish | CI runs the SoC simulation. `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Done |
+| 5, Wed 18 Nov (moved up from Thu 19) | Automate and publish | CI runs the SoC simulation. `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Done |
 | 20 to 23 Nov | Technical report (4 pages) and SOP draft | Report uses only the numbers from `BENCHMARKS.md` | Planned |
 | 24 to 25 Nov | Buffer, tag the final commit `v1.0` | Project finished on 25 Nov | Planned |
 | Optional | **Real cycle trace** on the website | Replays the executed instruction stream from the RTL simulation, scalar vs MAC side by side. Only if there is time before the report | Optional |
