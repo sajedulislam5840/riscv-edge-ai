@@ -18,8 +18,8 @@
   });
 
   const fw = RES.firmware;
-  if (fw && fw.macInstructionsPerInference) {
-    const x = (fw.instructionsPerInference / fw.macInstructionsPerInference).toFixed(2) + "×";
+  if (fw && fw.optMacInstructionsPerInference) {
+    const x = (fw.optScalarInstructionsPerInference / fw.optMacInstructionsPerInference).toFixed(2) + "×";
     for (const id of ["map-speedup", "proof-speedup"]) {
       const el = document.getElementById(id);
       if (el) el.textContent = x;

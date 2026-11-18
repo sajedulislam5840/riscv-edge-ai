@@ -34,8 +34,10 @@
     };
     showBar("speed-clr", RES.firmware.macClrAddInstructionsPerInference);
     showBar("speed-mac", RES.firmware.macInstructionsPerInference);
-    if (RES.firmware.macInstructionsPerInference) {
-      setText("speedup-int", (base / RES.firmware.macInstructionsPerInference).toFixed(2));
+    showBar("speed-os", RES.firmware.optScalarInstructionsPerInference);
+    showBar("speed-om", RES.firmware.optMacInstructionsPerInference);
+    if (RES.firmware.optMacInstructionsPerInference) {
+      setText("speedup-int", (RES.firmware.optScalarInstructionsPerInference / RES.firmware.optMacInstructionsPerInference).toFixed(2));
     }
   }
 

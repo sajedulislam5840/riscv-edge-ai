@@ -168,8 +168,8 @@
         </div>
         <div>
           <dt>Measured speed-up</dt>
-          <dd><span id="speedup-int">5.03</span>× fewer instructions to classify a digit on a simulated RISC-V chip,
-            with every output byte unchanged (below).</dd>
+          <dd><span id="speedup-int">4.58</span>× fewer instructions to classify a digit on a simulated RISC-V chip,
+            compared with an equally unrolled scalar loop, with every output byte unchanged (below).</dd>
         </div>
       </dl>
 
@@ -203,7 +203,7 @@
         <figure class="log-panel">
           <figcaption><code>make -C firmware run</code></figcaption>
           <pre id="spike-log">riscv-edge-ai: bare-metal INT8 MNIST on RV32IM (scalar baseline)
-one inference: 818685 instructions
+one inference: 822232 instructions
 RESULT: all outputs match the C++ engine</pre>
         </figure>
         <div class="speed">
@@ -211,7 +211,7 @@ RESULT: all outputs match the C++ engine</pre>
           <div class="speed-row">
             <span class="speed-label">Plain RV32IM</span>
             <span class="speed-track"><span class="speed-bar" style="width:100%"></span></span>
-            <span class="speed-val" data-r="firmware.instructionsPerInference">818,685</span>
+            <span class="speed-val" data-r="firmware.instructionsPerInference">822,232</span>
           </div>
           <div class="speed-row" id="speed-clr">
             <span class="speed-label">With <code>simd_mac_clr</code> + add</span>
@@ -223,12 +223,22 @@ RESULT: all outputs match the C++ engine</pre>
             <span class="speed-track"><span class="speed-bar speed-bar-mac" id="speed-mac-bar"></span></span>
             <span class="speed-val" id="speed-mac-val">being measured</span>
           </div>
+          <div class="speed-row" id="speed-os">
+            <span class="speed-label">Plain RV32IM, loop unrolled</span>
+            <span class="speed-track"><span class="speed-bar" id="speed-os-bar"></span></span>
+            <span class="speed-val" id="speed-os-val">being measured</span>
+          </div>
+          <div class="speed-row" id="speed-om">
+            <span class="speed-label">With <code>simd_macz</code> / <code>simd_macc</code>, loop unrolled</span>
+            <span class="speed-track"><span class="speed-bar speed-bar-mac" id="speed-om-bar"></span></span>
+            <span class="speed-val" id="speed-om-val">being measured</span>
+          </div>
           <p class="note">
-            <span data-r="firmware.macsPerInference">101,632</span> multiply-accumulates per digit, so plain
-            RV32IM needs about <span id="ipm">8.1</span> instructions for each one. With the new instructions the
-            inner loop does four of them in six instructions: two loads, the MAC, two pointer steps and the
-            loop branch. Spike counts instructions, not clock cycles; cycle-accurate numbers come from running
-            the firmware on a real RISC-V core in simulation, the next step.
+            <span data-r="firmware.macsPerInference">101,632</span> multiply-accumulates per digit, so the plain
+            loop needs about <span id="ipm">8.1</span> instructions for each one. Unrolling the loops cuts the
+            instruction count on both sides, so the fair comparison is the unrolled plain loop against the
+            unrolled MAC loop. Spike counts instructions, not clock cycles; the clock-cycle counts from the
+            RISC-V core in RTL simulation are in the README.
           </p>
         </div>
       </div>

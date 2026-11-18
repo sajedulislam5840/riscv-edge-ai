@@ -92,7 +92,7 @@
             <span class="stage-n">5</span>
             <span class="stage-title">RISC‑V</span>
             <span class="stage-text">Bare‑metal firmware on the Spike simulator, with and without the new instructions.</span>
-            <span class="stage-num"><b id="map-speedup">5.03×</b> fewer instructions per digit</span>
+            <span class="stage-num"><b id="map-speedup">4.58×</b> fewer instructions per digit</span>
           </a>
         </li>
       </ol>
@@ -110,8 +110,8 @@
           <span class="proof-label">instructions from a real test image run through the Verilog, with <span data-r="cosim.unitMismatches">0</span> mismatches</span>
         </div>
         <div class="proof-item">
-          <span class="proof-big p5" id="proof-speedup">5.03×</span>
-          <span class="proof-label">fewer instructions to classify a digit with the custom instructions: <span data-r="firmware.macInstructionsPerInference">162,870</span> instead of <span data-r="firmware.instructionsPerInference">818,685</span></span>
+          <span class="proof-big p5" id="proof-speedup">4.58×</span>
+          <span class="proof-label">fewer instructions to classify a digit with the custom instructions, compared with an equally unrolled scalar loop: <span data-r="firmware.optMacInstructionsPerInference">95,120</span> instead of <span data-r="firmware.optScalarInstructionsPerInference">435,282</span></span>
         </div>
       </div>
       <p class="proof-note">
