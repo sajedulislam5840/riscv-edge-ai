@@ -1,13 +1,3 @@
-// Connects the SIMD MAC wrapper to PicoRV32's PCPI (pico co-processor interface).
-//
-// PicoRV32 raises pcpi_valid for every instruction it does not decode itself and waits for a
-// co-processor to answer. This adapter accepts custom-0 instructions with funct7 = 1, 2 or 3
-// (simd_mac_clr, simd_macc, simd_macz), starts the MAC once, holds pcpi_wait so the core does
-// not time out, and returns the result one cycle later. funct7 = 0 (simd_mac) reads a third
-// register, which PCPI cannot supply, so it is left unanswered and the core traps on it.
-//
-// Cost: 2 extra cycles per MAC instruction (the cycle that issues it and the cycle that
-// returns the result).
 `timescale 1ns / 1ps
 
 module pcpi_simd_mac (
@@ -24,12 +14,12 @@ module pcpi_simd_mac (
     output wire        pcpi_ready
 );
     wire mine = pcpi_valid
-             && pcpi_insn[6:0]   == 7'b0001011      // custom-0
+             && pcpi_insn[6:0]   == 7'b0001011
              && pcpi_insn[14:12] == 3'b000
              && pcpi_insn[31:27] == 5'b00000
-             && pcpi_insn[26:25] != 2'b00;          // funct7 = 1, 2 or 3
+             && pcpi_insn[26:25] != 2'b00;
 
-    reg busy;                                        // MAC started, result due next cycle
+    reg busy;
     wire issue = mine && !busy;
 
     always @(posedge clk) begin
@@ -47,7 +37,7 @@ module pcpi_simd_mac (
         .insn         (pcpi_insn),
         .rs1_val      (pcpi_rs1),
         .rs2_val      (pcpi_rs2),
-        .rd_val       (32'd0),                       // the 2-operand forms never read it
+        .rd_val       (32'd0),
         .req_valid    (issue),
         .req_ready    (mac_req_ready),
         .rsp_valid    (mac_rsp_valid),

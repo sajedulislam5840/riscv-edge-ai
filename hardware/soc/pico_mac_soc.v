@@ -1,5 +1,3 @@
-// PicoRV32 with the SIMD MAC attached through PCPI. Memory and the UART live in the testbench.
-// WITH_MAC = 0 leaves the PCPI port unanswered: the same core without the unit.
 `timescale 1ns / 1ps
 
 module pico_mac_soc #(
