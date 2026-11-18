@@ -38,6 +38,23 @@ window.PROJECT_RESULTS = {
     "wrapperIdleCycles": 3115,
     "wrapperMismatches": 0
   },
+  "soc": {
+    "isaChecks": 14005,
+    "isaPass": true,
+    "imagesChecked": 10,
+    "imagesCorrect": 10,
+    "allMatch": true,
+    "instructionsPerInference": 822232,
+    "macClrAddInstructionsPerInference": 187598,
+    "macInstructionsPerInference": 161500,
+    "optScalarInstructionsPerInference": 435282,
+    "optMacInstructionsPerInference": 95120,
+    "scalarCycles": 4416182,
+    "macClrAddCycles": 1014656,
+    "macCycles": 908620,
+    "optScalarCycles": 2583289,
+    "optMacCycles": 577451
+  },
   "fmax": {
     "unit ice40-up5k": {
       "min": 47.03,

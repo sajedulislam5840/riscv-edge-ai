@@ -330,7 +330,7 @@ bash hardware/scripts/fmax.sh > build/fmax.txt      # optional
 python scripts/record_results.py
 ```
 
-CI runs all of the above on every push, and fails if the regenerated model, calibration constants, golden vectors or web demo numbers differ from the committed ones.
+CI runs all of the above on every push, including the whole-SoC RTL simulation, and fails if the regenerated model, calibration constants, golden vectors or web demo numbers differ from the committed ones, if the RTL and Spike instruction counts disagree, or if the self-test passes on a core without the MAC unit.
 
 To retrain from scratch: `python benchmarks/mnist/train_and_export.py` (NumPy only), then run the export again.
 
@@ -393,7 +393,7 @@ The order matters: the software optimisation changes the cycle counts, so it com
 | 1, Fri 13 Nov | Core boots and the custom instructions work | The ISA self-test passes on the PicoRV32 RTL, and fails without the unit | Done |
 | 2 and 3, Wed 18 Nov | MNIST on the core, baseline, **wait-state sweep**, cost | Bit-exact on all 10 images with measured cycles, the same core without the unit, cycles for 0 to 16 wait states, area and Fmax with and without the unit | Done |
 | 4, Wed 18 Nov | **Software optimisation** | Unrolled loops on both sides (a fair baseline), bit-exact, measured on the RTL, with a before/after table. Two neurons per activation load was costed and rejected | Done |
-| 5, Thu 19 Nov | Automate and publish | CI runs the SoC simulation. `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Planned |
+| 5, Thu 19 Nov | Automate and publish | CI runs the SoC simulation (done). `BENCHMARKS.md` generated from the results (how each number is measured, reproduce commands, caveats). README and website show the final numbers | Planned |
 | 20 to 23 Nov | Technical report (4 pages) and SOP draft | Report uses only the numbers from `BENCHMARKS.md` | Planned |
 | 24 to 25 Nov | Buffer, tag the final commit `v1.0` | Project finished on 25 Nov | Planned |
 | Optional | **Real cycle trace** on the website | Replays the executed instruction stream from the RTL simulation, scalar vs MAC side by side. Only if there is time before the report | Optional |

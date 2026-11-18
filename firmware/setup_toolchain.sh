@@ -3,6 +3,7 @@
 # and the Spike instruction-set simulator (built from source). Linux or WSL on Windows.
 #   bash firmware/setup_toolchain.sh            installs into ~/.riscv-edge-ai-tools
 #   RV_PREFIX=/some/dir bash firmware/setup_toolchain.sh
+#   RV_SKIP_SPIKE=1 bash firmware/setup_toolchain.sh   compiler only (enough for the RTL simulation)
 # Then: export PATH="$HOME/.riscv-edge-ai-tools/bin:$PATH"
 set -euo pipefail
 PREFIX=${RV_PREFIX:-$HOME/.riscv-edge-ai-tools}
@@ -18,6 +19,12 @@ if ! command -v riscv-none-elf-gcc >/dev/null; then
   curl -sSL -o gcc.tgz "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v$GCC_VER/xpack-riscv-none-elf-gcc-$GCC_VER-linux-x64.tar.gz"
   tar xzf gcc.tgz && rm gcc.tgz
   for f in "xpack-riscv-none-elf-gcc-$GCC_VER"/bin/*; do ln -sf "$PWD/$f" "$PREFIX/bin/"; done
+fi
+
+if [ "${RV_SKIP_SPIKE:-0}" = 1 ]; then
+  echo "Ready. Add to PATH:  export PATH=\"$PREFIX/bin:\$PATH\""
+  riscv-none-elf-gcc --version | head -1
+  exit 0
 fi
 
 # Spike's build needs dtc (device-tree compiler); dtc's build needs flex.
