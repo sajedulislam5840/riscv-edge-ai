@@ -14,6 +14,8 @@
 \usepackage[font=small,labelfont=bf,skip=3pt]{caption}
 \usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black]{hyperref}
 \usepackage{float}
+\usepackage{xurl}
+\emergencystretch=2em
 
 \setlist{nosep,leftmargin=1.3em}
 \setlength{\parskip}{0.3em}
@@ -23,8 +25,8 @@
 \newcommand{\simd}[1]{\texttt{simd\_#1}}
 
 \title{\bfseries A custom 4-lane INT8 multiply-accumulate instruction\\for a RISC-V core: design, verification and\\cycle-level measurement}
-\author{Sajedul Islam\\[2pt]\small Department of Computer Science and Engineering, BRAC University, Dhaka, Bangladesh\\\small\href{mailto:sajedulislam5840@gmail.com}{sajedulislam5840@gmail.com}}
-\date{November 2026}
+\author{Mir Mohammad Sajedul Islam\\[2pt]\small\href{mailto:sajedulislam5840@gmail.com}{sajedulislam5840@gmail.com}}
+\date{}
 
 \begin{document}
 \maketitle
@@ -109,7 +111,7 @@ in one clock cycle. Each product is at most $2^{14}$ in magnitude, so four produ
 The four instructions are R-type in opcode \texttt{0x0B} (\texttt{custom-0}) with \texttt{funct3} = 0:
 
 \begin{center}
-\begin{tabular}{@{}llp{7.6cm}@{}}
+\begin{tabular}{@{}llp{9.3cm}@{}}
 \toprule
 Instruction & \texttt{funct7} & Operation \\
 \midrule
@@ -149,7 +151,7 @@ Each stage is checked against the one before it, and each check is shown to be a
 \caption{Verification runs. All counts are from the repository's recorded results.}
 \label{tab:verify}
 \small
-\begin{tabular}{@{}p{5.7cm}p{3.9cm}p{4.9cm}@{}}
+\begin{tabular}{@{}p{6.6cm}p{3.9cm}p{5.4cm}@{}}
 \toprule
 Check & Size & Result \\
 \midrule
