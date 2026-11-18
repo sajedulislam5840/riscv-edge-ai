@@ -35,6 +35,8 @@ void htif_put_i32(int32_t v) {
     else htif_put_u32((uint32_t)v);
 }
 
+uint32_t platform_option(int which, uint32_t dflt) { (void)which; return dflt; }
+
 void htif_exit(int code) {
     tohost = ((uint32_t)code << 1) | 1;
     for (;;) {}

@@ -6,6 +6,13 @@
 #define UART_TX  (*(volatile uint32_t *)0x10000000u)
 #define EXIT_REG (*(volatile uint32_t *)0x10000004u)
 
+// Options set by the testbench (0xFFFFFFFF means not set).
+uint32_t platform_option(int which, uint32_t dflt) {
+    if (which == 2) return 1;                     // rdcycle is a real clock-cycle counter here
+    uint32_t v = *(volatile uint32_t *)(0x10000008u + 4u * (uint32_t)which);
+    return v == 0xFFFFFFFFu ? dflt : v;
+}
+
 static void put_char(char c) { UART_TX = (uint32_t)(unsigned char)c; }
 
 void htif_puts(const char *s) { while (*s) put_char(*s++); }

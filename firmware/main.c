@@ -123,25 +123,34 @@ static void put_ratio_x100(uint32_t num, uint32_t den) {  // prints num/den with
 
 int main(void) {
     htif_puts("riscv-edge-ai: bare-metal INT8 MNIST on RV32IM\n");
+    // Run-time options (the PicoRV32 testbench sets them; Spike uses the defaults). Choosing at run time
+    // rather than at compile time keeps one binary, so every measurement runs exactly the same code.
+    uint32_t n_examples = platform_option(0, NUM_EXAMPLES);   // how many example images
+    if (n_examples > NUM_EXAMPLES) n_examples = NUM_EXAMPLES;
+    const int scalar_only = (int)platform_option(1, 0);       // 1: skip the custom instructions
+    const int real_cycles = (int)platform_option(2, 0);       // 1: rdcycle counts clock cycles (not Spike)
     int failures = 0;
-    uint32_t c0 = 0, i0 = 0, i_clr = 0, i_int = 0;
-    for (int e = 0; e < NUM_EXAMPLES; e++) {
+    uint32_t c0 = 0, i0 = 0, i_clr = 0, i_int = 0, c_clr = 0, c_int = 0;
+    for (int e = 0; e < (int)n_examples; e++) {
         uint32_t cs = rdcycle(), is = rdinstret();
         int pred = infer_scalar(IMAGES[e]);
         uint32_t cycles = rdcycle() - cs, instrs = rdinstret() - is;
         int ok = matches(output, e);
 
-        is = rdinstret();
-        int pred_clr = infer_mac(IMAGES[e], MAC_CLR_ADD);
-        uint32_t n_clr = rdinstret() - is;
-        ok &= matches(out_q, e) && pred_clr == pred;
+        uint32_t n_clr = 0, n_int = 0, cyc_clr = 0, cyc_int = 0;
+        if (!scalar_only) {
+            // The cycle counter is read outside the instruction window so the instruction counts stay exact.
+            cs = rdcycle(); is = rdinstret();
+            int pred_clr = infer_mac(IMAGES[e], MAC_CLR_ADD);
+            n_clr = rdinstret() - is; cyc_clr = rdcycle() - cs;
+            ok &= matches(out_q, e) && pred_clr == pred;
 
-        is = rdinstret();
-        int pred_int = infer_mac(IMAGES[e], MAC_INTERNAL);
-        uint32_t n_int = rdinstret() - is;
-        ok &= matches(out_q, e) && pred_int == pred;
-
-        if (e == 0) { c0 = cycles; i0 = instrs; i_clr = n_clr; i_int = n_int; }
+            cs = rdcycle(); is = rdinstret();
+            int pred_int = infer_mac(IMAGES[e], MAC_INTERNAL);
+            n_int = rdinstret() - is; cyc_int = rdcycle() - cs;
+            ok &= matches(out_q, e) && pred_int == pred;
+        }
+        if (e == 0) { c0 = cycles; i0 = instrs; i_clr = n_clr; i_int = n_int; c_clr = cyc_clr; c_int = cyc_int; }
         failures += !ok;
         htif_puts("test image "); htif_put_u32(TEST_INDEX[e]);
         htif_puts(": label "); htif_put_u32(LABELS[e]);
@@ -150,10 +159,18 @@ int main(void) {
     }
     htif_puts("one inference: "); htif_put_u32(i0); htif_puts(" instructions, ");
     htif_put_u32(c0); htif_puts(" cycles (rdcycle)\n");
-    htif_puts("with simd_mac_clr + add: "); htif_put_u32(i_clr); htif_puts(" instructions, ");
-    put_ratio_x100(i0, i_clr); htif_puts("x fewer\n");
-    htif_puts("with simd_macz/simd_macc: "); htif_put_u32(i_int); htif_puts(" instructions, ");
-    put_ratio_x100(i0, i_int); htif_puts("x fewer\n");
+    if (!scalar_only) {
+        htif_puts("with simd_mac_clr + add: "); htif_put_u32(i_clr); htif_puts(" instructions, ");
+        put_ratio_x100(i0, i_clr); htif_puts("x fewer\n");
+        htif_puts("with simd_macz/simd_macc: "); htif_put_u32(i_int); htif_puts(" instructions, ");
+        put_ratio_x100(i0, i_int); htif_puts("x fewer\n");
+        if (real_cycles) {
+            htif_puts("cycles per inference: scalar "); htif_put_u32(c0);
+            htif_puts(", simd_mac_clr + add "); htif_put_u32(c_clr); htif_puts(" ("); put_ratio_x100(c0, c_clr);
+            htif_puts("x fewer), simd_macz/simd_macc "); htif_put_u32(c_int); htif_puts(" ("); put_ratio_x100(c0, c_int);
+            htif_puts("x fewer)\n");
+        }
+    }
     htif_puts("multiply-accumulates per inference: ");
     htif_put_u32((uint32_t)(IN_SIZE * HIDDEN_SIZE + HIDDEN_SIZE * OUT_SIZE)); htif_puts("\n");
     htif_puts(failures ? "RESULT: FAIL\n" : "RESULT: all outputs match the C++ engine\n");

@@ -203,7 +203,7 @@
         <figure class="log-panel">
           <figcaption><code>make -C firmware run</code></figcaption>
           <pre id="spike-log">riscv-edge-ai: bare-metal INT8 MNIST on RV32IM (scalar baseline)
-one inference: 818683 instructions
+one inference: 818685 instructions
 RESULT: all outputs match the C++ engine</pre>
         </figure>
         <div class="speed">
@@ -211,7 +211,7 @@ RESULT: all outputs match the C++ engine</pre>
           <div class="speed-row">
             <span class="speed-label">Plain RV32IM</span>
             <span class="speed-track"><span class="speed-bar" style="width:100%"></span></span>
-            <span class="speed-val" data-r="firmware.instructionsPerInference">818,683</span>
+            <span class="speed-val" data-r="firmware.instructionsPerInference">818,685</span>
           </div>
           <div class="speed-row" id="speed-clr">
             <span class="speed-label">With <code>simd_mac_clr</code> + add</span>

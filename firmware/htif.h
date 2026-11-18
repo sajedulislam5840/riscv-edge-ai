@@ -7,6 +7,8 @@ void htif_puts(const char *s);
 void htif_put_u32(uint32_t v);
 void htif_put_i32(int32_t v);
 void htif_exit(int code);
+// Run-time option `which` (0: number of example images, 1: skip the custom instructions, 2: counters are real clock cycles), or `dflt`.
+uint32_t platform_option(int which, uint32_t dflt);
 
 static inline uint32_t rdcycle(void) { uint32_t c; __asm__ volatile("rdcycle %0" : "=r"(c)); return c; }
 static inline uint32_t rdinstret(void) { uint32_t c; __asm__ volatile("rdinstret %0" : "=r"(c)); return c; }
