@@ -302,6 +302,7 @@ bash hardware/scripts/soc_sim.sh isa      # custom-instruction self-test on the 
 bash hardware/scripts/soc_sim.sh mnist    # full MNIST inference on the core, about a minute
 bash hardware/scripts/soc_sweep.sh        # cycles with 0 to 16 memory wait states, and the core without the unit (a few minutes)
 bash hardware/scripts/soc_synth.sh        # area and clock speed with and without the unit (a few minutes)
+bash hardware/scripts/soc_trace.sh        # records one neuron, cycle by cycle, for the website (web/js/trace.js)
 ```
 
 **MNIST evaluation** (needs Python with NumPy, and `mnist.npz` in the repo root, from https://storage.googleapis.com/tensorflow/tf-keras-datasets/mnist.npz):
@@ -360,7 +361,7 @@ hardware/include/   C header for the custom instruction
 hardware/fpga/      timing harness for place-and-route
 hardware/docs/      microarchitecture spec
 firmware/           bare-metal RV32IM inference for Spike and PicoRV32: startup code, linker scripts, I/O
-web/                browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
+web/                landing page (with a cycle-by-cycle replay of one neuron) and browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
 scripts/            record_results.py (web/js/results.js), gen_benchmarks.py (BENCHMARKS.md)
 BENCHMARKS.md       every measured number, how it was measured, what is not measured
 docs/               quantization spec, benchmark notes, figures
