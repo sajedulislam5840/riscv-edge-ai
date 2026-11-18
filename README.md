@@ -358,7 +358,7 @@ firmware/           bare-metal RV32IM inference for Spike and PicoRV32: startup 
 web/                landing page (with a cycle-by-cycle replay of one neuron) and browser demo: the INT8 engine ported to JavaScript, bit-exact with the C++ engine
 scripts/            record_results.py (web/js/results.js), gen_benchmarks.py (BENCHMARKS.md)
 BENCHMARKS.md       every measured number, how it was measured, what is not measured
-docs/               quantization spec, benchmark notes, figures
+docs/               quantization spec, figures
 ```
 
 ---
