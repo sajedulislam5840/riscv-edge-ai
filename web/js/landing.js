@@ -25,4 +25,19 @@
       if (el) el.textContent = x;
     }
   }
+
+  const soc = RES.soc, sw = RES.socSweep, ar = RES.socArea;
+  const put = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  if (soc && soc.optMacCycles) {
+    put("soc-speedup", (soc.optScalarCycles / soc.optMacCycles).toFixed(2) + "×");
+  }
+  if (sw && sw.rows && sw.rows.length) {
+    put("soc-speedup16", sw.rows[sw.rows.length - 1].speedup.toFixed(2) + "×");
+  }
+  if (soc && ar && ar.ecp5) {
+    const fNo = Math.max(...ar.ecp5.coreNoMac.fmaxMHz), fMac = Math.max(...ar.ecp5.coreMac.fmaxMHz);
+    const tNo = soc.optScalarCycles / fNo, tMac = soc.optMacCycles / fMac;
+    put("soc-time", (tNo / tMac).toFixed(1) + "×");
+    put("soc-fmax-drop", ((1 - fMac / fNo) * 100).toFixed(0));
+  }
 })();

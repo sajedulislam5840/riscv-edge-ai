@@ -118,6 +118,8 @@ code { font-family: var(--mono); font-size: 0.88em; }
 .proof-big.p2 { color: var(--c2); } .proof-big.p4 { color: var(--c4); } .proof-big.p5 { color: var(--c5); }
 .proof-big { font-family: var(--display); font-size: clamp(2.6rem, 2rem + 2.2vw, 4rem); font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
 .proof-label { color: var(--ink-2); font-size: 0.95rem; max-width: 30ch; }
+.proof-sub { font-family: var(--display); font-size: 1.5rem; margin: 3.5rem 0 0.5rem; }
+.proof-intro { color: var(--ink-2); max-width: 70ch; margin: 0; }
 .proof-note { color: var(--muted); font-size: 0.95rem; margin-top: 2.25rem; max-width: 70ch; }
 
 /* ------------------------------------------------------------ demo page frame */

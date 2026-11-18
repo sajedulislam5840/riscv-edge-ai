@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>riscv-edge-ai — a neural network on eight-bit integers</title>
   <meta name="description"
-    content="An integer-only neural network for small RISC-V chips, and the custom instruction that makes it five times faster. Draw a digit and watch it run." />
+    content="An integer-only neural network for small RISC-V chips, and the custom instruction that makes it four and a half times faster. Draw a digit and watch it run." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23171A21'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Arial,sans-serif' font-weight='700' font-size='17' fill='%23F4F5F7'%3E8%3C/text%3E%3C/svg%3E" />
   <meta name="theme-color" content="#F4F5F7" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -28,7 +28,7 @@
     <section class="cover" aria-labelledby="cover-title">
       <div class="cover-text">
       <p class="cover-kicker">An open hardware and software project by Sajedul Islam</p>
-      <h1 id="cover-title">A neural network that runs on eight‑bit integers,<br />and the RISC‑V instruction that makes it five times faster.</h1>
+      <h1 id="cover-title">A neural network that runs on eight‑bit integers,<br />and the RISC‑V instruction that makes it four and a half times faster.</h1>
       <p class="cover-lede">
         Small chips without a floating‑point unit can still run AI. This project takes a handwritten‑digit
         network all the way down: from training, to integer‑only arithmetic, to a multiply‑accumulate unit in
@@ -76,7 +76,7 @@
             <span class="stage-n">3</span>
             <span class="stage-title">Compute</span>
             <span class="stage-text">The integer engine in C++, ported to this page byte for byte. Draw and watch it think.</span>
-            <span class="stage-num"><b>100,352</b> multiplications per digit, live</span>
+            <span class="stage-num"><b data-r="firmware.macsPerInference">101,632</b> multiply‑accumulates per digit, live</span>
           </a>
         </li>
         <li class="stage s4">
@@ -114,9 +114,28 @@
           <span class="proof-label">fewer instructions to classify a digit with the custom instructions, compared with an equally unrolled scalar loop: <span data-r="firmware.optMacInstructionsPerInference">95,120</span> instead of <span data-r="firmware.optScalarInstructionsPerInference">435,282</span></span>
         </div>
       </div>
+      <h3 class="proof-sub" id="soc-title">On a RISC‑V core, cycle by cycle</h3>
+      <p class="proof-intro">
+        The same firmware runs on PicoRV32 simulated from its Verilog, with the MAC unit attached through the core's coprocessor interface.
+        All ten test images match the C++ engine bit for bit.
+      </p>
+      <div class="proof-grid">
+        <div class="proof-item">
+          <span class="proof-big p4" id="soc-speedup">4.47×</span>
+          <span class="proof-label">fewer clock cycles per digit than an equally unrolled scalar loop: <span data-r="soc.optMacCycles">577,451</span> instead of <span data-r="soc.optScalarCycles">2,583,289</span>. With 16 wait states on every memory access it is <span id="soc-speedup16">4.27×</span></span>
+        </div>
+        <div class="proof-item">
+          <span class="proof-big p2"><span data-r="socArea.ecp5.unit.dsp">4</span> DSP</span>
+          <span class="proof-label">and <span data-r="socArea.ecp5.unit.lut4">419</span> LUTs and <span data-r="socArea.ecp5.unit.ff">34</span> flip‑flops is what the unit costs on an ECP5 FPGA</span>
+        </div>
+        <div class="proof-item">
+          <span class="proof-big p5" id="soc-time">3.8×</span>
+          <span class="proof-label">faster in time, not 4.5×: the unit lowers the core's clock speed by <span id="soc-fmax-drop">14</span>%. Estimated from place‑and‑route clock speeds</span>
+        </div>
+      </div>
       <p class="proof-note">
         Every number on this site is read from files the project's own code writes, and the repository's
-        tests fail if they drift. <a href="https://github.com/sajedulislam5840/riscv-edge-ai#reproduce">How to reproduce them</a>.
+        tests fail if they drift. <a href="https://github.com/sajedulislam5840/riscv-edge-ai/blob/main/BENCHMARKS.md">How each one is measured</a> and <a href="https://github.com/sajedulislam5840/riscv-edge-ai#reproduce">how to reproduce them</a>.
       </p>
     </section>
   </main>
@@ -125,9 +144,9 @@
     <p>Sajedul Islam · <a href="https://github.com/sajedulislam5840/riscv-edge-ai">github.com/sajedulislam5840/riscv-edge-ai</a> · MIT licence</p>
   </footer>
 
-  <script src="js/quant_params.js?v=8"></script>
-  <script src="js/model_int8.js?v=8"></script>
-  <script src="js/results.js?v=8"></script>
-  <script src="js/landing.js?v=8"></script>
+  <script src="js/quant_params.js?v=9"></script>
+  <script src="js/model_int8.js?v=9"></script>
+  <script src="js/results.js?v=9"></script>
+  <script src="js/landing.js?v=9"></script>
 </body>
 </html>
