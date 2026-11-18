@@ -108,4 +108,6 @@ jobs:
           bash hardware/scripts/soc_sim.sh isa   | tee build/soc_isa.txt
           bash hardware/scripts/soc_sim.sh mnist | tee build/soc_mnist.txt
       - name: Numbers must match the committed results and the Spike counts
-        run: python3 scripts/record_results.py --check
+        run: |
+          python3 scripts/record_results.py --check
+          python3 scripts/gen_benchmarks.py --check

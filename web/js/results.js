@@ -55,6 +55,111 @@ window.PROJECT_RESULTS = {
     "optScalarCycles": 2583289,
     "optMacCycles": 577451
   },
+  "socSweep": {
+    "rows": [
+      {
+        "waitStates": 0,
+        "scalar": 4416182,
+        "macClrAdd": 1014656,
+        "macInternal": 908620,
+        "optScalar": 2583289,
+        "optMac": 577451,
+        "speedup": 4.47
+      },
+      {
+        "waitStates": 1,
+        "scalar": 5443856,
+        "macClrAdd": 1255542,
+        "macInternal": 1122860,
+        "optScalar": 3128982,
+        "optMac": 703428,
+        "speedup": 4.45
+      },
+      {
+        "waitStates": 2,
+        "scalar": 6471530,
+        "macClrAdd": 1521836,
+        "macInternal": 1362508,
+        "optScalar": 3674675,
+        "optMac": 854813,
+        "speedup": 4.3
+      },
+      {
+        "waitStates": 4,
+        "scalar": 8731248,
+        "macClrAdd": 2055528,
+        "macInternal": 1842908,
+        "optScalar": 4970429,
+        "optMac": 1158687,
+        "speedup": 4.29
+      },
+      {
+        "waitStates": 8,
+        "scalar": 13250684,
+        "macClrAdd": 3122912,
+        "macInternal": 2803708,
+        "optScalar": 7561937,
+        "optMac": 1766435,
+        "speedup": 4.28
+      },
+      {
+        "waitStates": 16,
+        "scalar": 22289556,
+        "macClrAdd": 5257680,
+        "macInternal": 4725308,
+        "optScalar": 12744953,
+        "optMac": 2981931,
+        "speedup": 4.27
+      }
+    ],
+    "noMacScalarCycles": 4416182
+  },
+  "socArea": {
+    "ecp5": {
+      "coreNoMac": {
+        "lut4": 1942,
+        "ff": 924,
+        "dsp": 4,
+        "fmaxMHz": [
+          84.48,
+          84.77,
+          82.11
+        ]
+      },
+      "coreMac": {
+        "lut4": 2487,
+        "ff": 958,
+        "dsp": 8,
+        "fmaxMHz": [
+          72.84,
+          69.95,
+          69.65
+        ]
+      },
+      "unit": {
+        "lut4": 419,
+        "ff": 34,
+        "dsp": 4
+      }
+    },
+    "ice40": {
+      "coreNoMac": {
+        "lut4": 2734,
+        "ff": 931,
+        "dsp": 4
+      },
+      "coreMac": {
+        "lut4": 2785,
+        "ff": 965,
+        "dsp": 8
+      },
+      "unit": {
+        "lut4": 76,
+        "ff": 34,
+        "dsp": 4
+      }
+    }
+  },
   "fmax": {
     "unit ice40-up5k": {
       "min": 47.03,
