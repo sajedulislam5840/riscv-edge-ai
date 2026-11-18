@@ -1,6 +1,6 @@
 // Bare-metal MNIST inference on RV32IM: integer-only, no heap, no standard library.
 //
-// Runs the 784-128-10 INT8 network on the ten example test images in three versions and checks
+// Runs the 784-128-10 INT8 network on the ten example test images in five versions and checks
 // every output byte of each against the expected values computed on the host (same integer
 // arithmetic as the C++ engine):
 //
@@ -8,6 +8,7 @@
 //   simd_mac_clr + add   the custom instruction computes four products and their sum;
 //                        an ordinary add keeps the running total
 //   simd_macz/simd_macc  the running total stays inside the MAC unit
+//   unrolled scalar and unrolled simd_macz/simd_macc, the fair pair to compare with each other
 //
 // It reports the instruction count of one inference for each version (Spike counts one cycle
 // per instruction, so these are instruction counts, not pipeline cycles).
@@ -38,7 +39,7 @@ static int8_t finish(int32_t acc, int8_t b, int32_t zb, int32_t mult, int shift,
 
 // ---------------------------------------------------------------------------- scalar
 // One dense layer. Weights are [K][N] row-major with zero point 0 (symmetric).
-static void dense(const int8_t *x, int32_t zx, const int8_t *w, const int8_t *b, int32_t zb,
+__attribute__((always_inline)) static inline void dense(const int8_t *x, int32_t zx, const int8_t *w, const int8_t *b, int32_t zb,
                   int K, int N, int32_t mult, int shift, int32_t bmult, int bshift,
                   int32_t zout, int relu, int8_t *out) {
     for (int j = 0; j < N; j++) {
@@ -56,7 +57,7 @@ static int argmax(const int8_t *v) {
     return best;
 }
 
-static int infer_scalar(const uint8_t *pixels) {
+__attribute__((noinline)) static int infer_scalar(const uint8_t *pixels) {
     for (int i = 0; i < IN_SIZE; i++) input[i] = (int8_t)((int32_t)pixels[i] - 128);
     dense(input, ZP_IN, W1, B1, B1_ZP, IN_SIZE, HIDDEN_SIZE, L1_MULT, L1_SHIFT, L1_BIAS_MULT, L1_BIAS_SHIFT,
           ZP_HID, 1, hidden);
@@ -77,7 +78,7 @@ enum { MAC_CLR_ADD, MAC_INTERNAL };
 
 // One dense layer with the custom instruction. w holds K/4 packed words per neuron; zcorr is
 // the per-neuron constant -Z_x * sum(w), so acc + zcorr = sum((x - Z_x) * w).
-static void dense_mac(const uint32_t *x, const uint32_t *w, const int32_t *zcorr, const int8_t *b, int32_t zb,
+__attribute__((always_inline)) static inline void dense_mac(const uint32_t *x, const uint32_t *w, const int32_t *zcorr, const int8_t *b, int32_t zb,
                       int K, int N, int32_t mult, int shift, int32_t bmult, int bshift,
                       int32_t zout, int relu, int8_t *out, int mode) {
     const int words = K / 4;
@@ -99,11 +100,57 @@ static void dense_mac(const uint32_t *x, const uint32_t *w, const int32_t *zcorr
     }
 }
 
-static int infer_mac(const uint8_t *pixels, int mode) {
+__attribute__((noinline)) static int infer_mac(const uint8_t *pixels, int mode) {
     for (int i = 0; i < IN_SIZE; i++) in_q.b[i] = (int8_t)((int32_t)pixels[i] - 128);
     dense_mac(in_q.w, W1_PACKED, ZCORR1, B1, B1_ZP, IN_SIZE, HIDDEN_SIZE, L1_MULT, L1_SHIFT, L1_BIAS_MULT,
               L1_BIAS_SHIFT, ZP_HID, 1, hid_q.b, mode);
     dense_mac(hid_q.w, W2_PACKED, ZCORR2, B2, B2_ZP, HIDDEN_SIZE, OUT_SIZE, L2_MULT, L2_SHIFT, L2_BIAS_MULT,
+              L2_BIAS_SHIFT, ZP_OUT, 0, out_q, mode);
+    return argmax(out_q);
+}
+
+enum { OPT_SCALAR, OPT_MAC };
+
+__attribute__((always_inline)) static inline void dense_opt(const uint32_t *x, const uint32_t *w, const int32_t *zcorr, const int8_t *b, int32_t zb,
+                      int K, int N, int32_t mult, int shift, int32_t bmult, int bshift,
+                      int32_t zout, int relu, int8_t *out, int mode) {
+    const int words = K / 4;
+    for (int j = 0; j < N; j++) {
+        const uint32_t *wj = w + j * words;
+        int32_t acc;
+        if (mode == OPT_MAC) {
+            SIMD_MACZ(acc, x[0], wj[0]);
+            SIMD_MACC(acc, x[1], wj[1]);
+            SIMD_MACC(acc, x[2], wj[2]);
+            SIMD_MACC(acc, x[3], wj[3]);
+            int c = 4;
+            for (; c + 8 <= words; c += 8) {
+                SIMD_MACC(acc, x[c + 0], wj[c + 0]);
+                SIMD_MACC(acc, x[c + 1], wj[c + 1]);
+                SIMD_MACC(acc, x[c + 2], wj[c + 2]);
+                SIMD_MACC(acc, x[c + 3], wj[c + 3]);
+                SIMD_MACC(acc, x[c + 4], wj[c + 4]);
+                SIMD_MACC(acc, x[c + 5], wj[c + 5]);
+                SIMD_MACC(acc, x[c + 6], wj[c + 6]);
+                SIMD_MACC(acc, x[c + 7], wj[c + 7]);
+            }
+            for (; c < words; c++) SIMD_MACC(acc, x[c], wj[c]);
+        } else {
+            const int8_t *xb = (const int8_t *)x;
+            const int8_t *wb = (const int8_t *)wj;
+            acc = 0;
+            for (int k = 0; k < K; k += 16)
+                acc += xb[k + 0] * wb[k + 0] + xb[k + 1] * wb[k + 1] + xb[k + 2] * wb[k + 2] + xb[k + 3] * wb[k + 3] + xb[k + 4] * wb[k + 4] + xb[k + 5] * wb[k + 5] + xb[k + 6] * wb[k + 6] + xb[k + 7] * wb[k + 7] + xb[k + 8] * wb[k + 8] + xb[k + 9] * wb[k + 9] + xb[k + 10] * wb[k + 10] + xb[k + 11] * wb[k + 11] + xb[k + 12] * wb[k + 12] + xb[k + 13] * wb[k + 13] + xb[k + 14] * wb[k + 14] + xb[k + 15] * wb[k + 15];
+        }
+        out[j] = finish(acc + zcorr[j], b[j], zb, mult, shift, bmult, bshift, zout, relu);
+    }
+}
+
+__attribute__((noinline)) static int infer_opt(const uint8_t *pixels, int mode) {
+    for (int i = 0; i < IN_SIZE; i++) in_q.b[i] = (int8_t)((int32_t)pixels[i] - 128);
+    dense_opt(in_q.w, W1_PACKED, ZCORR1, B1, B1_ZP, IN_SIZE, HIDDEN_SIZE, L1_MULT, L1_SHIFT, L1_BIAS_MULT,
+              L1_BIAS_SHIFT, ZP_HID, 1, hid_q.b, mode);
+    dense_opt(hid_q.w, W2_PACKED, ZCORR2, B2, B2_ZP, HIDDEN_SIZE, OUT_SIZE, L2_MULT, L2_SHIFT, L2_BIAS_MULT,
               L2_BIAS_SHIFT, ZP_OUT, 0, out_q, mode);
     return argmax(out_q);
 }
@@ -128,7 +175,7 @@ int main(void) {
     const int scalar_only = (int)platform_option(1, 0);
     const int real_cycles = (int)platform_option(2, 0);
     int failures = 0;
-    uint32_t c0 = 0, i0 = 0, i_clr = 0, i_int = 0, c_clr = 0, c_int = 0;
+    uint32_t c0 = 0, i0 = 0, i_clr = 0, i_int = 0, c_clr = 0, c_int = 0, i_os = 0, c_os = 0, i_om = 0, c_om = 0;
     for (int e = 0; e < (int)n_examples; e++) {
         uint32_t cs = rdcycle(), is = rdinstret();
         int pred = infer_scalar(IMAGES[e]);
@@ -147,6 +194,19 @@ int main(void) {
             n_int = rdinstret() - is; cyc_int = rdcycle() - cs;
             ok &= matches(out_q, e) && pred_int == pred;
         }
+        uint32_t n_os = 0, n_om = 0, cyc_os = 0, cyc_om = 0;
+        if (!scalar_only) {
+            cs = rdcycle(); is = rdinstret();
+            int pred_os = infer_opt(IMAGES[e], OPT_SCALAR);
+            n_os = rdinstret() - is; cyc_os = rdcycle() - cs;
+            ok &= matches(out_q, e) && pred_os == pred;
+
+            cs = rdcycle(); is = rdinstret();
+            int pred_om = infer_opt(IMAGES[e], OPT_MAC);
+            n_om = rdinstret() - is; cyc_om = rdcycle() - cs;
+            ok &= matches(out_q, e) && pred_om == pred;
+        }
+        if (e == 0) { i_os = n_os; c_os = cyc_os; i_om = n_om; c_om = cyc_om; }
         if (e == 0) { c0 = cycles; i0 = instrs; i_clr = n_clr; i_int = n_int; c_clr = cyc_clr; c_int = cyc_int; }
         failures += !ok;
         htif_puts("test image "); htif_put_u32(TEST_INDEX[e]);
@@ -167,6 +227,14 @@ int main(void) {
             htif_puts("x fewer), simd_macz/simd_macc "); htif_put_u32(c_int); htif_puts(" ("); put_ratio_x100(c0, c_int);
             htif_puts("x fewer)\n");
         }
+    }
+    if (!scalar_only) {
+        htif_puts("optimised scalar (unrolled): "); htif_put_u32(i_os); htif_puts(" instructions");
+        if (real_cycles) { htif_puts(", "); htif_put_u32(c_os); htif_puts(" cycles"); }
+        htif_puts("\n");
+        htif_puts("optimised MAC (unrolled simd_macz/simd_macc): "); htif_put_u32(i_om); htif_puts(" instructions");
+        if (real_cycles) { htif_puts(", "); htif_put_u32(c_om); htif_puts(" cycles"); }
+        htif_puts("\n");
     }
     htif_puts("multiply-accumulates per inference: ");
     htif_put_u32((uint32_t)(IN_SIZE * HIDDEN_SIZE + HIDDEN_SIZE * OUT_SIZE)); htif_puts("\n");
