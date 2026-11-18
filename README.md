@@ -378,6 +378,6 @@ Next experiments: a two-stage multiplier to win back clock speed at the cost of 
 
 This builds on well-known ideas: the RISC-V P (packed SIMD) extension has a similar 4-way INT8 multiply-accumulate (`smaqa`), and projects such as Google's CFU Playground and PULP's XpulpNN add custom ML instructions to open RISC-V cores. What this project adds is a small, fully open, end-to-end stack, from quantization to RTL, built so that every step can be checked against the previous one.
 
-## License
+## Author and license
 
-MIT, see [LICENSE](LICENSE).
+Built by Sajedul Islam ([LinkedIn](https://www.linkedin.com/in/sajedul-islam-data/), [GitHub](https://github.com/sajedulislam5840)). MIT licence, see [LICENSE](LICENSE).
